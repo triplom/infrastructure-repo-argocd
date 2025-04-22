@@ -1,0 +1,93 @@
+# infrastructure-repo/.github/workflows/deploy-monitoring.yaml
+name: Deploy Monitoring Stack
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/monitoring/**'
+      - '.github/workflows/deploy-monitoring.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+
+jobs:
+  deploy:
+    name: Deploy Monitoring
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+      
+      - name: Setup Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
+      
+      - name: Add Helm repositories
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+      
+      - name: Create namespace
+        run: |
+          kubectl apply -f infrastructure/monitoring/base/namespace.yaml
+      
+      - name: Deploy kube-prometheus-stack
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          
+          # Prepare values file
+          cp infrastructure/monitoring/base/helm-values.yaml values-$ENV.yaml
+          
+          # Apply any environment-specific patches if they exist
+          if [ -f "infrastructure/monitoring/overlays/$ENV/values-patch.yaml" ]; then
+            # Using yq to merge YAML files
+            yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' values-$ENV.yaml infrastructure/monitoring/overlays/$ENV/values-patch.yaml > values-$ENV-merged.yaml
+            mv values-$ENV-merged.yaml values-$ENV.yaml
+          fi
+          
+          # Deploy using Helm
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --values values-$ENV.yaml \
+            --wait --timeout 10m
+          
+          # Apply additional Prometheus rules
+          kubectl apply -f infrastructure/monitoring/base/prometheus-rules.yaml
+      
+      - name: Verify deployment
+        run: |
+          echo "Waiting for Prometheus deployment..."
+          kubectl -n monitoring wait --for=condition=available --timeout=300s deployment/kube-prometheus-stack-prometheus
+          
+          echo "Waiting for Grafana deployment..."
+          kubectl -n monitoring wait --for=condition=available --timeout=300s deployment/kube-prometheus-stack-grafana
+      
+      - name: Get access information
+        run: |
+          echo "Monitoring stack deployed successfully!"
+          echo "Grafana can be accessed via port-forwarding:"
+          echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+          echo ""
+          echo "Prometheus can be accessed via port-forwarding:"
+          echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090"
+          

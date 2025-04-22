@@ -1,0 +1,54 @@
+name: Build and Test
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+env:
+  APP_NAME: app1
+  LOCAL_REGISTRY: localhost:5000
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.LOCAL_REGISTRY }}/${{ env.APP_NAME }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            latest
+      
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: ./src/app1
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+      
+      - name: Update deployment manifest
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE_TAG=$(echo ${{ steps.meta.outputs.tags }} | cut -d' ' -f1)
+          echo "Updating deployment manifest with image: $IMAGE_TAG"
+          
+          # Update image tag in app1 base deployment
+          sed -i "s|image: localhost:5000/app1:.*|image: $IMAGE_TAG|" apps/app1/base/deployment.yaml
+          
+          # Commit and push changes if there are any
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          git add apps/app1/base/deployment.yaml
+          git commit -m "Update app1 image to $IMAGE_TAG" || echo "No changes to commit"
+          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
