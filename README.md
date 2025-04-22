@@ -1,6 +1,8 @@
 # Push-Based GitOps with KIND and Prometheus Monitoring
 
-![GitOps Banner](https://via.placeholder.com/1200x300/0073e6/FFFFFF?text=Push-Based+GitOps)
+![GitOps Banner](gitops.png)
+
+<img src="gitops.jpg" alt="image" width="200"/>
 
 A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker) clusters with comprehensive monitoring through the kube-prometheus-stack.
 
@@ -257,6 +259,6 @@ Contributions are welcome! Please follow these steps:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the ![LICENSE](LICENSE) file for details.
 
 ---
