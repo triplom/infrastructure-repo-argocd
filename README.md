@@ -6,25 +6,25 @@ A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker)
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
+- [Overview](#-overview)
+- [Architecture](#️-architecture)
+- [Prerequisites](#-prerequisites)
+- [Getting Started](#-getting-started)
   - [Setting Up KIND Clusters](#setting-up-kind-clusters)
   - [Local Registry Configuration](#local-registry-configuration)
   - [GitHub Repository Setup](#github-repository-setup)
-- [Repository Structure](#repository-structure)
-- [Deployment Workflows](#deployment-workflows)
+- [Repository Structure](#-repository-structure)
+- [Deployment Workflows](#-deployment-workflows)
   - [Infrastructure Deployment](#infrastructure-deployment)
   - [Monitoring Stack Deployment](#monitoring-stack-deployment)
   - [Application Deployment](#application-deployment)
-- [Monitoring & Observability](#monitoring--observability)
+- [Monitoring & Observability](#-monitoring--observability)
   - [Accessing Dashboards](#accessing-dashboards)
   - [Metrics & Alerts](#metrics--alerts)
-- [Multi-Environment Strategy](#multi-environment-strategy)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+- [Multi-Environment Strategy](#-multi-environment-strategy)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## 🌐 Overview
 
@@ -40,7 +40,7 @@ This repository implements a push-based GitOps approach using GitHub Actions to 
 
 ## 🏛️ Architecture
 
-![Architecture Diagram](https://via.placeholder.com/800x500/f8f9fa/0A0A0A?text=Push-Based+GitOps+Architecture)
+![Architecture Diagram](KIND_CICD_flow.png)
 
 The architecture consists of three main components:
 
@@ -62,7 +62,7 @@ The architecture consists of three main components:
 - [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) (v0.17+)
 - [Helm](https://helm.sh/docs/intro/install/) (v3.9+)
 - [GitHub account](https://github.com/) with repository access
-- (Optional) [yq](https://github.com/mikefarah/yq) for YAML processing
+- [yq](https://github.com/mikefarah/yq) for YAML processing
 
 ## 🚀 Getting Started
 
@@ -180,21 +180,21 @@ gh workflow run deploy-apps --ref main -F environment=qa -F application=app1
 
 After deployment, access the dashboards using port-forwarding:
 
-#### Grafana:
+#### Grafana
 
 ```bash
 kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
 ```
 
-Then visit http://localhost:3000 in your browser (default credentials: admin/gitops-admin)
+Then visit <http://localhost:3000> in your browser (default credentials: admin/gitops-admin)
 
-#### Prometheus:
+#### Prometheus
 
 ```bash
 kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
 ```
 
-Then visit http://localhost:9090 in your browser
+Then visit <http://localhost:9090> in your browser
 
 ### Metrics & Alerts
 
@@ -229,18 +229,18 @@ This repository follows a multi-environment strategy:
 
 ### Common Issues
 
-#### Workflow Failure:
+#### Workflow Failure
 
 1. Check if the kubeconfig secrets are properly configured
 2. Verify the cluster is running with `kind get clusters`
 3. Check workflow logs in GitHub Actions
 
-#### Image Pulling Issues:
+#### Image Pulling Issues
 
 1. Ensure the local registry is running: `docker ps | grep registry`
 2. Check if the image exists: `docker images | grep app1`
 
-#### Monitoring Stack Issues:
+#### Monitoring Stack Issues
 
 1. Verify the Helm release: `helm list -n monitoring`
 2. Check Prometheus pods: `kubectl -n monitoring get pods | grep prometheus`
