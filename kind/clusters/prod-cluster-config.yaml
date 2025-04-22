@@ -22,7 +22,6 @@ nodes:
     protocol: TCP
 - role: worker
 - role: worker
-- role: worker
 networking:
   apiServerAddress: "127.0.0.1"
   apiServerPort: 6445
