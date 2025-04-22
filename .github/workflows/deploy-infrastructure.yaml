@@ -1,0 +1,70 @@
+name: Deploy Infrastructure
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/deploy-infrastructure.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+      component:
+        description: 'Component to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cert-manager
+          - ingress-nginx
+
+jobs:
+  deploy:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+      
+      - name: Setup Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
+      
+      - name: Deploy Cert Manager
+        if: ${{ github.event.inputs.component == 'cert-manager' || github.event.inputs.component == 'all' }}
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          echo "Deploying Cert Manager to $ENV environment"
+          chmod +x infrastructure/cert-manager/base/deploy.sh
+          ./infrastructure/cert-manager/base/deploy.sh $ENV
+      
+      - name: Deploy Ingress Nginx
+        if: ${{ github.event.inputs.component == 'ingress-nginx' || github.event.inputs.component == 'all' }}
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          echo "Deploying Ingress Nginx to $ENV environment"
+          chmod +x infrastructure/ingress-nginx/base/deploy.sh
+          ./infrastructure/ingress-nginx/base/deploy.sh $ENV

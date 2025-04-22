@@ -1,0 +1,61 @@
+name: Deploy Applications
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - '.github/workflows/deploy-apps.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+      application:
+        description: 'Application to deploy (empty for all)'
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    name: Deploy Applications
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+      
+      - name: Setup Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
+      
+      - name: Deploy Applications
+        run: |
+          # If specific app is specified, deploy only that one
+          if [ -n "${{ github.event.inputs.application }}" ]; then
+            echo "Deploying ${{ github.event.inputs.application }} to ${{ github.event.inputs.environment || 'dev' }}"
+            kubectl apply -k apps/${{ github.event.inputs.application }}/overlays/${{ github.event.inputs.environment || 'dev' }}
+            kubectl rollout status deployment/${{ github.event.inputs.application }} -n ${{ github.event.inputs.application }}-${{ github.event.inputs.environment || 'dev' }} --timeout=300s
+          else
+            # Deploy all applications
+            for APP_DIR in apps/*/; do
+              APP=$(basename $APP_DIR)
+              echo "Deploying $APP to ${{ github.event.inputs.environment || 'dev' }}"
+              kubectl apply -k apps/$APP/overlays/${{ github.event.inputs.environment || 'dev' }}
+              kubectl rollout status deployment/$APP -n $APP-${{ github.event.inputs.environment || 'dev' }} --timeout=300s
+            done
+          fi

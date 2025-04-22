@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+- ingress.yaml
+
+namespace: app1-dev
+
+patches:
+- path: patches.yaml
+  target:
+    kind: Deployment
+    name: app1
+
+configMapGenerator:
+- name: app1-config
+  behavior: merge
+  literals:
+  - ENVIRONMENT=dev
+  - LOG_LEVEL=DEBUG

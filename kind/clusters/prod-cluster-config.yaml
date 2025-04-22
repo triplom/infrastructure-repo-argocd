@@ -1,0 +1,28 @@
+# infrastructure-repo/kind/clusters/prod-cluster-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: prod-cluster
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 32000
+    hostPort: 32000
+    protocol: TCP
+  - containerPort: 32001
+    hostPort: 32001
+    protocol: TCP
+  - containerPort: 32002
+    hostPort: 32002
+    protocol: TCP
+  - containerPort: 80
+    hostPort: 10080
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 10443
+    protocol: TCP
+- role: worker
+- role: worker
+- role: worker
+networking:
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: 6445
