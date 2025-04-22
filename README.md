@@ -260,5 +260,3 @@ Contributions are welcome! Please follow these steps:
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
-
-Developed with ❤️ by the GitOps Team
