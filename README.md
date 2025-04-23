@@ -168,10 +168,10 @@ Deploy sample applications:
 
 ```bash
 # Deploy all applications to dev
-gh workflow run deploy-apps --ref main -F environment=dev
+gh workflow run deploy-apps.yaml --ref main -F environment=dev
 
 # Deploy a specific application to qa
-gh workflow run deploy-apps --ref main -F environment=qa -F application=app1
+gh workflow run deploy-apps.yaml --ref main -F environment=qa -F application=app1
 ```
 
 ## 📊 Monitoring & Observability
