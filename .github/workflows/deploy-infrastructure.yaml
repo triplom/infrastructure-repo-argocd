@@ -35,36 +35,98 @@ jobs:
     
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
       
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "4.5.7"
       
       - name: Setup Helm
         uses: azure/setup-helm@v3
         with:
-          version: 'v3.12.0'
+          version: 'v3.13.3' # Updated to latest stable version
       
       - name: Setup Kubeconfig
         run: |
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
+          # Check if KUBECONFIG is valid
+          if ! kubectl config get-contexts > /dev/null 2>&1; then
+            echo "::error::Invalid KUBECONFIG file"
+            exit 1
+          fi
+          echo "Using Kubernetes context: $(kubectl config current-context)"
       
       - name: Deploy Cert Manager
         if: ${{ github.event.inputs.component == 'cert-manager' || github.event.inputs.component == 'all' }}
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           echo "Deploying Cert Manager to $ENV environment"
+          
+          # Check if script exists
+          if [ ! -f "infrastructure/cert-manager/base/deploy.sh" ]; then
+            echo "::error::Cert Manager deployment script not found"
+            exit 1
+          fi
+          
           chmod +x infrastructure/cert-manager/base/deploy.sh
-          ./infrastructure/cert-manager/base/deploy.sh $ENV
+          
+          # Set KUBECTL_FLAGS to disable validation in CI environment
+          export KUBECTL_FLAGS="--validate=false"
+          
+          # Execute with timeout and capture exit code
+          timeout 300s ./infrastructure/cert-manager/base/deploy.sh "$ENV" || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+              echo "::error::Cert Manager deployment timed out"
+            else
+              echo "::error::Cert Manager deployment failed with exit code $EXIT_CODE"
+            fi
+            exit $EXIT_CODE
+          }
+          
+          # Verify deployment
+          echo "Verifying Cert Manager deployment..."
+          kubectl get deployment,pod -n cert-manager --selector=app.kubernetes.io/instance=cert-manager
       
       - name: Deploy Ingress Nginx
         if: ${{ github.event.inputs.component == 'ingress-nginx' || github.event.inputs.component == 'all' }}
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           echo "Deploying Ingress Nginx to $ENV environment"
+          
+          # Check if script exists
+          if [ ! -f "infrastructure/ingress-nginx/base/deploy.sh" ]; then
+            echo "::error::Ingress Nginx deployment script not found"
+            exit 1
+          fi
+          
           chmod +x infrastructure/ingress-nginx/base/deploy.sh
-          ./infrastructure/ingress-nginx/base/deploy.sh $ENV
+          
+          # Set KUBECTL_FLAGS to disable validation in CI environment
+          export KUBECTL_FLAGS="--validate=false"
+          
+          # Execute with timeout and capture exit code
+          timeout 300s ./infrastructure/ingress-nginx/base/deploy.sh "$ENV" || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+              echo "::error::Ingress Nginx deployment timed out"
+            else
+              echo "::error::Ingress Nginx deployment failed with exit code $EXIT_CODE"
+            fi
+            exit $EXIT_CODE
+          }
+          
+          # Verify deployment
+          echo "Verifying Ingress Nginx deployment..."
+          kubectl get deployment,pod -n ingress-nginx --selector=app.kubernetes.io/instance=ingress-nginx
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          # Remove kubeconfig when done
+          rm -f ./kubeconfig

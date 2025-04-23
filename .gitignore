@@ -1,1 +1,41 @@
-*-cluster-kubeconfig*
+# Kubernetes & Docker
+kubeconfig
+*.kubeconfig
+*.kubeconfig.bak
+.kube/
+.docker/
+*.pem
+*.key
+*.crt
+
+# Development tools
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Base64 encoded secrets
+*-base64.txt
