@@ -1,5 +1,5 @@
 # Kubernetes & Docker
-kubeconfig
+*-cluster-kubeconfig
 *.kubeconfig
 *.kubeconfig.bak
 .kube/
