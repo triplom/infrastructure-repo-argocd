@@ -27,6 +27,8 @@ jobs:
     name: Deploy Applications
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      ENV: ${{ github.event.inputs.environment || 'dev' }}
     
     steps:
       - name: Checkout Repository
@@ -42,19 +44,32 @@ jobs:
       
       - name: Setup Kubeconfig
         run: |
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
-          echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
-          # Verify kubeconfig is valid
-          kubectl config get-contexts || {
-            echo "::error::Invalid kubeconfig file"
+          # Create temporary kubeconfig file
+          TEMP_KUBECONFIG=$(mktemp)
+          echo "${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
+          chmod 600 "${TEMP_KUBECONFIG}"
+          
+          # Set KUBECONFIG environment variable to the temporary file
+          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
+          
+          # Verify kubeconfig
+          if ! kubectl config get-contexts; then
+            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
             exit 1
-          }
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-      
+          fi
+          
+          # Show which context we're using
+          CURRENT_CONTEXT=$(kubectl config current-context)
+          echo "Using Kubernetes context: $CURRENT_CONTEXT"
+          
+          # Test API server connectivity
+          echo "Testing API server connectivity..."
+          if ! kubectl cluster-info; then
+            echo "::warning::Cannot connect to Kubernetes API server directly. All kubectl commands will use --validate=false."
+          fi
+
       - name: Deploy Applications
         run: |
-          # Set environment
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
           APP="${{ github.event.inputs.application }}"
           FAILED_APPS=""
           
@@ -113,7 +128,7 @@ jobs:
           # Deploy either specific app or all apps
           if [ -n "$APP" ]; then
             # Deploy specific app
-            if ! deploy_app "$APP" "$ENV"; then
+            if ! deploy_app "$APP" "${ENV}"; then
               echo "::error::Deployment of $APP failed"
               exit 1
             fi
@@ -121,7 +136,7 @@ jobs:
             # Deploy all apps
             for APP_DIR in apps/*/; do
               APP=$(basename $APP_DIR)
-              if ! deploy_app "$APP" "$ENV"; then
+              if ! deploy_app "$APP" "${ENV}"; then
                 FAILED_APPS="$FAILED_APPS $APP"
                 echo "::warning::Failed to deploy $APP, continuing with others"
               fi
@@ -132,12 +147,12 @@ jobs:
               echo "::error::The following applications failed to deploy:$FAILED_APPS"
               exit 1
             else
-              echo "✅ All applications successfully deployed to $ENV"
+              echo "✅ All applications successfully deployed to ${ENV}"
             fi
           fi
       
       - name: Cleanup
         if: always()
         run: |
-          # Remove sensitive files
-          rm -f ./kubeconfig
+          # Nothing to clean up when using temporary files
+          # They're automatically removed when the workflow finishes
