@@ -1,8 +1,6 @@
 # Push-Based GitOps with KIND and Prometheus Monitoring
 
-![GitOps Banner](gitops.png)
-
-<img src="gitops.jpg" alt="image" width="200"/>
+<img src="gitops.png" alt="gitops" width="100" align="center"/> 
 
 A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker) clusters with comprehensive monitoring through the kube-prometheus-stack.
 
@@ -140,7 +138,7 @@ Deploy core infrastructure components:
 # Go to Actions → Deploy Infrastructure → Run workflow
 
 # Or from command line (requires GitHub CLI)
-gh workflow run deploy-infrastructure --ref main -F environment=dev -F component=all
+gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=all
 ```
 
 This deploys:
@@ -154,7 +152,7 @@ Deploy the Prometheus monitoring stack:
 
 ```bash
 # Manual trigger
-gh workflow run deploy-monitoring --ref main -F environment=dev
+gh workflow run deploy-monitoring.yaml --ref main -F environment=dev
 ```
 
 This deploys:
