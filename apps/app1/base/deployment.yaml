@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: app1
-        image: localhost:5000/app1:latest
+        image: ghcr.io/triplom/app1:main
         ports:
         - containerPort: 8080
           name: http
