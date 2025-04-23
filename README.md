@@ -18,11 +18,13 @@ A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker)
   - [Infrastructure Deployment](#infrastructure-deployment)
   - [Monitoring Stack Deployment](#monitoring-stack-deployment)
   - [Application Deployment](#application-deployment)
+- [CI/CD Pipeline](#-cicd-pipeline)
 - [Monitoring & Observability](#-monitoring--observability)
   - [Accessing Dashboards](#accessing-dashboards)
   - [Metrics & Alerts](#metrics--alerts)
 - [Multi-Environment Strategy](#-multi-environment-strategy)
 - [Troubleshooting](#-troubleshooting)
+- [Security Best Practices](#-security-best-practices)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -37,6 +39,7 @@ This repository implements a push-based GitOps approach using GitHub Actions to 
 - Comprehensive monitoring with Prometheus, Grafana, and AlertManager
 - Multi-environment deployment strategy with proper separation of concerns
 - Ingress management with cert-manager for SSL/TLS
+- Local container registry for development and testing
 
 ## 🏛️ Architecture
 
@@ -59,10 +62,11 @@ The architecture consists of three main components:
 
 - [Docker](https://www.docker.com/get-started) (v20.10+)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) (v1.24+)
-- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) (v0.17+)
-- [Helm](https://helm.sh/docs/intro/install/) (v3.9+)
+- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) (v0.20+)
+- [Helm](https://helm.sh/docs/intro/install/) (v3.12+)
 - [GitHub account](https://github.com/) with repository access
 - [yq](https://github.com/mikefarah/yq) for YAML processing
+- [GitHub CLI](https://cli.github.com/) (optional, for workflow triggering)
 
 ## 🚀 Getting Started
 
@@ -74,10 +78,18 @@ Clone the repository and run the KIND setup script:
 git clone https://github.com/your-username/infrastructure-repo.git
 cd infrastructure-repo
 chmod +x kind/setup-kind.sh
+
+# Create all clusters (dev, qa, prod)
 ./kind/setup-kind.sh
+
+# Or create a specific environment
+./kind/setup-kind.sh dev
+
+# Force recreation of clusters
+./kind/setup-kind.sh --force
 ```
 
-This creates three separate Kubernetes clusters:
+This creates Kubernetes clusters based on your selection:
 
 - `dev-cluster`: For development and testing
 - `qa-cluster`: For quality assurance and pre-production
@@ -89,7 +101,21 @@ Set up the local container registry:
 
 ```bash
 chmod +x infrastructure/local-registry/setup-registry.sh
+
+# Default setup
 ./infrastructure/local-registry/setup-registry.sh
+
+# Customize registry port
+./infrastructure/local-registry/setup-registry.sh --port 5001
+
+# Configure specific cluster only
+./infrastructure/local-registry/setup-registry.sh --cluster dev-cluster
+
+# Test registry functionality
+./infrastructure/local-registry/setup-registry.sh --test
+
+# Clean and recreate registry
+./infrastructure/local-registry/setup-registry.sh --clean
 ```
 
 ### GitHub Repository Setup
@@ -105,8 +131,13 @@ chmod +x infrastructure/local-registry/setup-registry.sh
    To encode your kubeconfig files:
 
 ```bash
-   base64 -w 0 dev-cluster-kubeconfig > dev-cluster-kubeconfig-base64.txt
-   # Copy the contents of dev-cluster-kubeconfig-base64.txt to the KUBECONFIG_DEV secret
+# Linux
+base64 -w 0 dev-cluster-kubeconfig > dev-cluster-kubeconfig-base64.txt
+
+# macOS
+base64 -i dev-cluster-kubeconfig -o dev-cluster-kubeconfig-base64.txt
+
+# Copy the contents of dev-cluster-kubeconfig-base64.txt to the KUBECONFIG_DEV secret
 ```
 
 ## 📂 Repository Structure
@@ -114,6 +145,10 @@ chmod +x infrastructure/local-registry/setup-registry.sh
 ```bash
 infrastructure-repo/
 ├── .github/workflows/         # GitHub Actions workflow definitions
+│   ├── ci-pipeline.yaml       # Build and test applications
+│   ├── deploy-apps.yaml       # Deploy applications to clusters
+│   ├── deploy-infrastructure.yaml # Deploy core infrastructure
+│   └── deploy-monitoring.yaml # Deploy monitoring stack
 ├── apps/                      # Application manifests
 │   └── app1/                  # Sample application
 │       ├── base/              # Base manifests
@@ -124,6 +159,9 @@ infrastructure-repo/
 │   ├── monitoring/            # Prometheus & Grafana stack
 │   └── local-registry/        # Local container registry setup
 ├── kind/                      # KIND cluster configurations
+│   ├── clusters/              # Cluster config files
+│   ├── setup-kind.sh          # Cluster creation script
+│   └── monitoring-stack.sh    # Monitoring deployment script
 └── src/                       # Application source code
 ```
 
@@ -139,12 +177,11 @@ Deploy core infrastructure components:
 
 # Or from command line (requires GitHub CLI)
 gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=all
+
+# Deploy specific components
+gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=cert-manager
+gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=ingress-nginx
 ```
-
-This deploys:
-
-- cert-manager for TLS certificates
-- ingress-nginx for ingress management
 
 ### Monitoring Stack Deployment
 
@@ -174,6 +211,31 @@ gh workflow run deploy-apps.yaml --ref main -F environment=dev
 gh workflow run deploy-apps.yaml --ref main -F environment=qa -F application=app1
 ```
 
+## 🔄 CI/CD Pipeline
+
+The CI/CD pipeline consists of several workflows:
+
+1. **CI Pipeline (`ci-pipeline.yaml`)**
+   - Triggered on pushes to `main` and feature branches
+   - Runs tests on application code
+   - Builds Docker images and pushes to registry
+   - Updates application manifests with new image tags
+
+2. **Application Deployment (`deploy-apps.yaml`)**
+   - Deploys applications to Kubernetes clusters
+   - Can deploy specific applications or all applications
+   - Supports different environments (dev/qa/prod)
+
+3. **Infrastructure Deployment (`deploy-infrastructure.yaml`)**
+   - Deploys core infrastructure components
+   - Manages cert-manager and ingress-nginx
+   - Support for multiple environments
+
+4. **Monitoring Stack Deployment (`deploy-monitoring.yaml`)**
+   - Deploys Prometheus, Grafana, and AlertManager
+   - Configures dashboards and alerting rules
+   - Environment-specific configurations
+
 ## 📊 Monitoring & Observability
 
 ### Accessing Dashboards
@@ -183,7 +245,12 @@ After deployment, access the dashboards using port-forwarding:
 #### Grafana
 
 ```bash
+# Using the service
 kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+
+# Direct pod access (if service access fails)
+export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=kube-prometheus-stack" -oname)
+kubectl --namespace monitoring port-forward $POD_NAME 3000
 ```
 
 Then visit <http://localhost:3000> in your browser (default credentials: admin/gitops-admin)
@@ -195,6 +262,14 @@ kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheu
 ```
 
 Then visit <http://localhost:9090> in your browser
+
+#### AlertManager
+
+```bash
+kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
+```
+
+Then visit <http://localhost:9093> in your browser
 
 ### Metrics & Alerts
 
@@ -213,17 +288,20 @@ This repository follows a multi-environment strategy:
    - Fast deployments
    - Minimal resources
    - Debug-level logging
+   - Automatic deployments on main branch changes
 
 2. **QA/Testing** (`qa`):
    - More resources for testing
    - More replicas for resilience testing
    - Integration tests
+   - Manual approval for deployments
 
 3. **Production** (`prod`):
    - Maximum resources
    - Multiple replicas
    - Production-level logging
    - Stricter security settings
+   - Required approvals for deployments
 
 ## 🔍 Troubleshooting
 
@@ -234,16 +312,44 @@ This repository follows a multi-environment strategy:
 1. Check if the kubeconfig secrets are properly configured
 2. Verify the cluster is running with `kind get clusters`
 3. Check workflow logs in GitHub Actions
+4. Add `--validate=false` to kubectl commands in CI/CD environments
+5. Verify namespace exists before deploying resources
 
 #### Image Pulling Issues
 
 1. Ensure the local registry is running: `docker ps | grep registry`
 2. Check if the image exists: `docker images | grep app1`
+3. Verify registry connectivity from clusters: `curl -X GET http://localhost:5000/v2/_catalog`
+4. Check if container runtime is configured correctly: `docker exec <node-name> cat /etc/containerd/certs.d/localhost:5000/hosts.toml`
 
 #### Monitoring Stack Issues
 
 1. Verify the Helm release: `helm list -n monitoring`
 2. Check Prometheus pods: `kubectl -n monitoring get pods | grep prometheus`
+3. Check Grafana logs: `kubectl -n monitoring logs deploy/kube-prometheus-stack-grafana -c grafana`
+4. Verify ConfigMaps are properly created: `kubectl -n monitoring get cm`
+
+## 🔒 Security Best Practices
+
+1. **Secure Secrets Management**:
+   - Never commit kubeconfig files or credentials to the repository
+   - Use GitHub Secrets for sensitive information
+   - Consider tools like Sealed Secrets for Kubernetes secrets
+
+2. **Access Control**:
+   - Use least privilege principle for CI/CD workflows
+   - Set appropriate environment protections in GitHub
+   - Implement proper approvals for production deployments
+
+3. **Container Security**:
+   - Scan images for vulnerabilities
+   - Use minimal base images
+   - Don't run containers as root
+
+4. **Network Security**:
+   - Use network policies to restrict traffic
+   - Expose services only when necessary
+   - Configure proper TLS with cert-manager
 
 ## 👨‍💻 Contributing
 
@@ -255,8 +361,25 @@ Contributions are welcome! Please follow these steps:
 4. Push to the branch: `git push origin feature/my-new-feature`
 5. Submit a pull request
 
+For local development, you can use the provided scripts:
+
+```bash
+# Setup development environment
+./kind/setup-kind.sh dev
+./infrastructure/local-registry/setup-registry.sh
+
+# Validate code
+# Install pre-commit hooks for validation
+pip install pre-commit
+pre-commit install
+```
+
+Check the [CONTRIBUTING](docs/CONTRIBUTING.md) file for details
+
 ## 📄 License
 
-This project is licensed under the MIT License - see the ![LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
+
+**Note**: This documentation assumes you're using the repository locally or in a private GitHub repository. For production use, consider additional security measures and proper CI/CD pipelines with appropriate approvals.
