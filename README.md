@@ -39,7 +39,7 @@ This repository implements a push-based GitOps approach using GitHub Actions to 
 - Comprehensive monitoring with Prometheus, Grafana, and AlertManager
 - Multi-environment deployment strategy with proper separation of concerns
 - Ingress management with cert-manager for SSL/TLS
-- Local container registry for development and testing
+- GitHub Container Registry for storing container images
 
 ## 🏛️ Architecture
 
@@ -95,27 +95,23 @@ This creates Kubernetes clusters based on your selection:
 - `qa-cluster`: For quality assurance and pre-production
 - `prod-cluster`: For production workloads
 
-### Local Registry Configuration
+### GitHub Container Registry Setup
 
-Set up the local container registry:
+Set up the GitHub Container Registry authentication:
 
 ```bash
-chmod +x infrastructure/local-registry/setup-registry.sh
+chmod +x infrastructure/github-registry/github-setup.sh
 
-# Default setup
-./infrastructure/local-registry/setup-registry.sh
+# Set GitHub credentials as environment variables
+export GITHUB_USERNAME="your-username"
+export GITHUB_TOKEN="your-personal-access-token"
+export GITHUB_EMAIL="your-email@example.com"
 
-# Customize registry port
-./infrastructure/local-registry/setup-registry.sh --port 5001
+# Run the GitHub Container Registry setup
+./infrastructure/github-registry/github-setup.sh
 
-# Configure specific cluster only
-./infrastructure/local-registry/setup-registry.sh --cluster dev-cluster
-
-# Test registry functionality
-./infrastructure/local-registry/setup-registry.sh --test
-
-# Clean and recreate registry
-./infrastructure/local-registry/setup-registry.sh --clean
+# Verify setup
+kubectl get secrets -n container-auth
 ```
 
 ### GitHub Repository Setup
@@ -157,7 +153,7 @@ infrastructure-repo/
 │   ├── cert-manager/          # TLS certificate management
 │   ├── ingress-nginx/         # Ingress controller
 │   ├── monitoring/            # Prometheus & Grafana stack
-│   └── local-registry/        # Local container registry setup
+│   └── github-registry/       # GitHub Container Registry setup
 ├── kind/                      # KIND cluster configurations
 │   ├── clusters/              # Cluster config files
 │   ├── setup-kind.sh          # Cluster creation script
