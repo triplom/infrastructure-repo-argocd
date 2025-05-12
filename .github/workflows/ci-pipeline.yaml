@@ -1,9 +1,29 @@
-name: Build, Test and Deploy
+name: CI Pipeline
 on:
   push:
     branches: [main, 'feature/**']
   pull_request:
     branches: [main]
+  # Add workflow_dispatch to enable manual triggering
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      component:
+        description: 'Component to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - app1
 env:
   APP_NAME: app1
   REGISTRY: ghcr.io
@@ -13,6 +33,8 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    env:
+      CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +74,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -79,6 +101,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: type=inline
       
       - name: Set image tag output
         id: image-tag
@@ -89,7 +113,10 @@ jobs:
   update-config:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+      COMPONENT: ${{ github.event.inputs.component || 'all' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,13 +129,24 @@ jobs:
           
           # Update the image tag in the base deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
-          sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
+          
+          # If component is 'all' or specifically 'app1', update the config
+          if [[ "${{ env.COMPONENT }}" == "all" || "${{ env.COMPONENT }}" == "app1" ]]; then
+            echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
+            if [ -f "apps/app1/${{ env.ENVIRONMENT }}/deployment.yaml" ]; then
+              sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/${{ env.ENVIRONMENT }}/deployment.yaml
+            else
+              sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
+            fi
+          else
+            echo "Skipping app1 update as component filter is: ${{ env.COMPONENT }}"
+          fi
           
           # Commit and push the changes
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add .
-          git commit -m "Update image to $IMAGE_TAG" || echo "No changes to commit"
+          git commit -m "Update image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
           git push https://${{ secrets.CONFIG_REPO_PAT }}@github.com/triplom/infrastructure-repo.git main
         env:
           CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
