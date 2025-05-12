@@ -1,10 +1,27 @@
 #!/bin/bash
 set -e
 
+# First set the Variables as environment variables 
+# export GITHUB_USERNAME="your-username"
+# export GITHUB_TOKEN="your-token"
+# export GITHUB_EMAIL="your-email"
+
+# Check if required environment variables are set
+if [ -z "$GITHUB_USERNAME" ] || [ -z "$GITHUB_TOKEN" ] || [ -z "$GITHUB_EMAIL" ]; then
+  echo "Error: Required environment variables not set."
+  echo "Please set GITHUB_USERNAME, GITHUB_TOKEN and GITHUB_EMAIL before running this script."
+  exit 1
+fi
+
 # Create Kubernetes secrets for GitHub Container Registry authentication
 for CLUSTER in dev-cluster qa-cluster prod-cluster; do
   echo "Configuring $CLUSTER to use GitHub Container Registry..."
+  
+  # Create namespace if it doesn't exist
   kubectl --context kind-$CLUSTER create namespace container-auth || true
+  
+  # Delete existing secret if it exists
+  kubectl --context kind-$CLUSTER delete secret github-registry-secret --namespace=container-auth 2>/dev/null || true
   
   # Create secret for GitHub Container Registry
   kubectl --context kind-$CLUSTER create secret docker-registry github-registry-secret \
@@ -15,11 +32,34 @@ for CLUSTER in dev-cluster qa-cluster prod-cluster; do
     --docker-email=$GITHUB_EMAIL
     
   # Make the secret available to other namespaces
-  kubectl --context kind-$CLUSTER create clusterrole registry-auth \
-    --verb=use \
-    --resource=secrets
-   
-  kubectl --context kind-$CLUSTER create clusterrolebinding serviceaccount-registry-auth \
-    --clusterrole=registry-auth \
-    --serviceaccount=container-auth:default
+  # Use apply instead of create to handle existing resources
+  kubectl --context kind-$CLUSTER apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: registry-auth
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["use"]
+EOF
+
+  kubectl --context kind-$CLUSTER apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: serviceaccount-registry-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: registry-auth
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: container-auth
+EOF
+
+  echo "GitHub Container Registry configured successfully for $CLUSTER"
 done
+
+echo "GitHub Container Registry setup complete!"
