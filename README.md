@@ -1,8 +1,8 @@
-# Push-Based GitOps with KIND and Prometheus Monitoring
+# Pull-Based GitOps with ArgoCD, KIND, and Prometheus Monitoring
 
 <img src="gitops.png" alt="gitops" width="100" align="center"/> 
 
-A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker) clusters with comprehensive monitoring through the kube-prometheus-stack.
+A complete implementation of pull-based GitOps using ArgoCD, KIND (Kubernetes IN Docker) clusters, and comprehensive monitoring through the kube-prometheus-stack.
 
 ## 📋 Table of Contents
 
@@ -11,13 +11,14 @@ A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker)
 - [Prerequisites](#-prerequisites)
 - [Getting Started](#-getting-started)
   - [Setting Up KIND Clusters](#setting-up-kind-clusters)
-  - [Local Registry Configuration](#local-registry-configuration)
+  - [GitHub Container Registry Setup](#github-container-registry-setup)
   - [GitHub Repository Setup](#github-repository-setup)
+  - [Installing ArgoCD](#installing-argocd)
 - [Repository Structure](#-repository-structure)
-- [Deployment Workflows](#-deployment-workflows)
-  - [Infrastructure Deployment](#infrastructure-deployment)
-  - [Monitoring Stack Deployment](#monitoring-stack-deployment)
-  - [Application Deployment](#application-deployment)
+- [ArgoCD App-of-Apps Pattern](#-argocd-app-of-apps-pattern)
+  - [Root Application](#root-application)
+  - [Infrastructure Applications](#infrastructure-applications)
+  - [Business Applications](#business-applications)
 - [CI/CD Pipeline](#-cicd-pipeline)
 - [Monitoring & Observability](#-monitoring--observability)
   - [Accessing Dashboards](#accessing-dashboards)
@@ -30,12 +31,13 @@ A complete implementation of push-based GitOps using KIND (Kubernetes IN Docker)
 
 ## 🌐 Overview
 
-This repository implements a push-based GitOps approach using GitHub Actions to deploy infrastructure and applications to Kubernetes clusters. Unlike pull-based GitOps solutions (like ArgoCD or Flux), this approach triggers deployments through CI/CD pipelines when changes are detected in the Git repository.
+This repository implements a pull-based GitOps approach using ArgoCD to deploy infrastructure and applications to Kubernetes clusters. Unlike push-based GitOps solutions that trigger deployments through CI/CD pipelines, this approach uses ArgoCD controllers inside the cluster that continuously monitor Git repositories and reconcile the actual cluster state with the desired state defined in Git.
 
 **Key Features:**
 
 - Local KIND clusters for development, QA, and production environments
-- Push-based GitOps using GitHub Actions workflows
+- Pull-based GitOps using ArgoCD for continuous reconciliation
+- App-of-Apps pattern for managing complex deployments
 - Comprehensive monitoring with Prometheus, Grafana, and AlertManager
 - Multi-environment deployment strategy with proper separation of concerns
 - Ingress management with cert-manager for SSL/TLS
@@ -43,20 +45,23 @@ This repository implements a push-based GitOps approach using GitHub Actions to 
 
 ## 🏛️ Architecture
 
-![Architecture Diagram](KIND_CICD_flow.png)
+![Architecture Diagram](KIND_CICD_ArgoCD_flow.png)
 
 The architecture consists of three main components:
 
-1. **Source of Truth**: Git repository containing infrastructure and application configurations
-2. **CI/CD Pipeline**: GitHub Actions workflows that detect changes and apply them
-3. **Runtime**: KIND clusters running in Docker containers
+1. **Source of Truth**: Git repositories containing infrastructure and application configurations
+2. **CI Pipeline**: GitHub Actions workflows that build, test, and update image references
+3. **CD Process**: ArgoCD running inside Kubernetes that detects changes and applies them
 
 **Workflow:**
 
-1. Developer commits changes to the repository
-2. GitHub Actions detects changes and triggers appropriate workflows
-3. CI/CD pipeline applies changes to the appropriate environment
-4. Monitoring stack collects metrics and displays them in Grafana
+1. Developer commits code changes to the application repository
+2. CI pipeline builds, tests, and pushes container image to GitHub Container Registry
+3. CI pipeline updates the configuration repository with new image tag
+4. ArgoCD continuously monitors the configuration repository
+5. When changes are detected, ArgoCD pulls the new configuration
+6. ArgoCD applies changes to the Kubernetes cluster
+7. ArgoCD continuously reconciles cluster state with Git repository state
 
 ## 🧰 Prerequisites
 
@@ -66,6 +71,7 @@ The architecture consists of three main components:
 - [Helm](https://helm.sh/docs/intro/install/) (v3.12+)
 - [GitHub account](https://github.com/) with repository access
 - [yq](https://github.com/mikefarah/yq) for YAML processing
+- [ArgoCD CLI](https://argo-cd.readthedocs.io/en/stable/cli_installation/) (v2.7+)
 - [GitHub CLI](https://cli.github.com/) (optional, for workflow triggering)
 
 ## 🚀 Getting Started
@@ -84,9 +90,6 @@ chmod +x kind/setup-kind.sh
 
 # Or create a specific environment
 ./kind/setup-kind.sh dev
-
-# Force recreation of clusters
-./kind/setup-kind.sh --force
 ```
 
 This creates Kubernetes clusters based on your selection:
@@ -117,155 +120,154 @@ kubectl get secrets -n container-auth
 ### GitHub Repository Setup
 
 1. Push the repository to GitHub
-2. Configure GitHub Secrets for cluster access
+2. Configure GitHub Secrets for the CI process:
    - Go to your GitHub repository → Settings → Secrets and Variables → Actions
    - Add the following secrets:
-     - `KUBECONFIG_DEV`: Base64-encoded kubeconfig for dev cluster
-     - `KUBECONFIG_QA`: Base64-encoded kubeconfig for QA cluster
-     - `KUBECONFIG_PROD`: Base64-encoded kubeconfig for production cluster
+     - `GITHUB_TOKEN`: Your GitHub personal access token with `packages:write` permission
+     - `CONFIG_REPO_PAT`: Personal access token to update configuration repository
 
-   To encode your kubeconfig files:
+### Installing ArgoCD
+
+Install ArgoCD on each cluster:
 
 ```bash
-# Linux
-base64 -w 0 dev-cluster-kubeconfig > dev-cluster-kubeconfig-base64.txt
+# Switch to the target cluster
+kubectl config use-context kind-dev-cluster
 
-# macOS
-base64 -i dev-cluster-kubeconfig -o dev-cluster-kubeconfig-base64.txt
+# Create namespace for ArgoCD
+kubectl create namespace argocd
 
-# Copy the contents of dev-cluster-kubeconfig-base64.txt to the KUBECONFIG_DEV secret
+# Install ArgoCD
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Wait for ArgoCD to be ready
+kubectl wait --for=condition=ready pod --all -n argocd --timeout=300s
+
+# Get the initial admin password
+ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+echo "Initial admin password: $ARGOCD_PASSWORD"
+
+# Access ArgoCD UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
+
+Access the ArgoCD UI at [https://localhost:8080](https://localhost:8080) with username: `admin` and the password from the previous command.
 
 ## 📂 Repository Structure
 
 ```bash
 infrastructure-repo/
 ├── .github/workflows/         # GitHub Actions workflow definitions
-│   ├── ci-pipeline.yaml       # Build and test applications
-│   ├── deploy-apps.yaml       # Deploy applications to clusters
-│   ├── deploy-infrastructure.yaml # Deploy core infrastructure
-│   └── deploy-monitoring.yaml # Deploy monitoring stack
+│   └── ci-pipeline.yaml       # Build and push images to GitHub Container Registry
 ├── apps/                      # Application manifests
 │   └── app1/                  # Sample application
 │       ├── base/              # Base manifests
 │       └── overlays/          # Environment-specific overlays
 ├── infrastructure/            # Infrastructure components
+│   ├── argocd/                # ArgoCD configuration
+│   │   ├── projects/          # ArgoCD projects
+│   │   └── applications/      # ArgoCD applications
 │   ├── cert-manager/          # TLS certificate management
+│   ├── github-registry/       # GitHub Container Registry setup
 │   ├── ingress-nginx/         # Ingress controller
-│   ├── monitoring/            # Prometheus & Grafana stack
-│   └── github-registry/       # GitHub Container Registry setup
+│   └── monitoring/            # Prometheus & Grafana stack
 ├── kind/                      # KIND cluster configurations
 │   ├── clusters/              # Cluster config files
-│   ├── setup-kind.sh          # Cluster creation script
-│   └── monitoring-stack.sh    # Monitoring deployment script
+│   └── setup-kind.sh          # Cluster creation script
 └── src/                       # Application source code
 ```
 
-## 🔄 Deployment Workflows
+## 🔄 ArgoCD App-of-Apps Pattern
 
-### Infrastructure Deployment
+The implementation uses ArgoCD's App-of-Apps pattern for managing complex deployments:
 
-Deploy core infrastructure components:
+### Root Application
 
 ```bash
-# Manual trigger through GitHub UI
-# Go to Actions → Deploy Infrastructure → Run workflow
-
-# Or from command line (requires GitHub CLI)
-gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=all
-
-# Deploy specific components
-gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=cert-manager
-gh workflow run deploy-infrastructure.yaml --ref main -F environment=dev -F component=ingress-nginx
+# Apply the root application
+kubectl apply -f infrastructure/argocd/applications/root.yaml
 ```
 
-### Monitoring Stack Deployment
+This bootstraps ArgoCD to manage all other applications.
 
-Deploy the Prometheus monitoring stack:
+### Infrastructure Applications
+
+Infrastructure components are defined in ArgoCD applications:
 
 ```bash
-# Manual trigger
-gh workflow run deploy-monitoring.yaml --ref main -F environment=dev
+# View infrastructure applications
+kubectl get applications -n argocd
+
+# Check synchronization status
+argocd app get infrastructure
 ```
 
-This deploys:
+Infrastructure includes:
 
-- Prometheus for metrics collection
-- Grafana for visualization
-- AlertManager for alerts
-- Node Exporter and Kube State Metrics for enhanced monitoring
+- Cert-manager for TLS certificates
+- NGINX Ingress Controller
+- Monitoring stack with Prometheus and Grafana
 
-### Application Deployment
+### Business Applications
 
-Deploy sample applications:
+Business applications are deployed using the same pattern:
 
 ```bash
-# Deploy all applications to dev
-gh workflow run deploy-apps.yaml --ref main -F environment=dev
+# Promote applications from development to QA
+sed -i 's|include: "*/overlays/dev/kustomization.yaml"|include: "*/overlays/qa/kustomization.yaml"|g' infrastructure/argocd/applications/apps.yaml
+git add .
+git commit -m "Promote applications from DEV to QA"
+git push
 
-# Deploy a specific application to qa
-gh workflow run deploy-apps.yaml --ref main -F environment=qa -F application=app1
+# ArgoCD automatically detects the change and updates the target environment
 ```
 
 ## 🔄 CI/CD Pipeline
 
-The CI/CD pipeline consists of several workflows:
+The CI/CD pipeline consists of:
 
-1. **CI Pipeline (`ci-pipeline.yaml`)**
+1. **CI Pipeline (GitHub Actions)**
    - Triggered on pushes to `main` and feature branches
    - Runs tests on application code
-   - Builds Docker images and pushes to registry
+   - Builds Docker images and pushes to GitHub Container Registry
    - Updates application manifests with new image tags
 
-2. **Application Deployment (`deploy-apps.yaml`)**
-   - Deploys applications to Kubernetes clusters
-   - Can deploy specific applications or all applications
-   - Supports different environments (dev/qa/prod)
-
-3. **Infrastructure Deployment (`deploy-infrastructure.yaml`)**
-   - Deploys core infrastructure components
-   - Manages cert-manager and ingress-nginx
-   - Support for multiple environments
-
-4. **Monitoring Stack Deployment (`deploy-monitoring.yaml`)**
-   - Deploys Prometheus, Grafana, and AlertManager
-   - Configures dashboards and alerting rules
-   - Environment-specific configurations
+2. **CD Process (ArgoCD)**
+   - Continuously monitors the Git repository
+   - Detects configuration changes
+   - Applies changes to the Kubernetes cluster
+   - Ensures the cluster state matches the desired state in Git
+   - Provides self-healing capabilities through continuous reconciliation
 
 ## 📊 Monitoring & Observability
 
 ### Accessing Dashboards
 
-After deployment, access the dashboards using port-forwarding:
+After deployment, access the dashboards using ArgoCD or port-forwarding:
+
+#### ArgoCD Dashboard
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+Visit [https://localhost:8080](https://localhost:8080) in your browser
 
 #### Grafana
 
 ```bash
-# Using the service
-kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
-
-# Direct pod access (if service access fails)
-export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=kube-prometheus-stack" -oname)
-kubectl --namespace monitoring port-forward $POD_NAME 3000
+kubectl port-forward svc/kube-prometheus-stack-grafana -n monitoring 3000:80
 ```
 
-Then visit <http://localhost:3000> in your browser (default credentials: admin/gitops-admin)
+Visit [http://localhost:3000](http://localhost:3000) in your browser (default credentials: admin/gitops-admin)
 
 #### Prometheus
 
 ```bash
-kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090
 ```
 
-Then visit <http://localhost:9090> in your browser
-
-#### AlertManager
-
-```bash
-kubectl --context kind-dev-cluster -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
-```
-
-Then visit <http://localhost:9093> in your browser
+Visit [http://localhost:9090](http://localhost:9090) in your browser
 
 ### Metrics & Alerts
 
@@ -274,49 +276,53 @@ The monitoring stack includes:
 - **System metrics**: CPU, memory, disk, network usage
 - **Kubernetes metrics**: Pod status, deployment status
 - **Application metrics**: Custom metrics exposed by applications
-- **Pre-configured alerts**: High CPU/memory usage, pod crashes, etc.
+- **ArgoCD metrics**: Sync status, health status, reconciliation times
+- **Pre-configured alerts**: High CPU/memory usage, pod crashes, sync failures
 
 ## 🌍 Multi-Environment Strategy
 
-This repository follows a multi-environment strategy:
+This repository follows a multi-environment strategy with ArgoCD:
 
 1. **Development** (`dev`):
-   - Fast deployments
-   - Minimal resources
+   - Fast iterations with automated synchronization
+   - Minimal resources for development
    - Debug-level logging
-   - Automatic deployments on main branch changes
+   - Automatic synchronization with Git repository
 
 2. **QA/Testing** (`qa`):
    - More resources for testing
    - More replicas for resilience testing
    - Integration tests
-   - Manual approval for deployments
+   - Manual promotion from development
 
 3. **Production** (`prod`):
    - Maximum resources
    - Multiple replicas
    - Production-level logging
    - Stricter security settings
-   - Required approvals for deployments
+   - Required approvals for synchronization
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
 
-#### Workflow Failure
+#### ArgoCD Application Not Syncing
 
-1. Check if the kubeconfig secrets are properly configured
-2. Verify the cluster is running with `kind get clusters`
-3. Check workflow logs in GitHub Actions
-4. Add `--validate=false` to kubectl commands in CI/CD environments
-5. Verify namespace exists before deploying resources
+1. Check if the application is properly defined: `argocd app get <app-name>`
+2. Verify the Git repository is accessible: `argocd repo list`
+3. Check for errors in the application: `kubectl logs -n argocd deploy/argocd-application-controller`
+4. Force a sync if needed: `argocd app sync <app-name>`
 
 #### Image Pulling Issues
 
-1. Ensure the local registry is running: `docker ps | grep registry`
-2. Check if the image exists: `docker images | grep app1`
-3. Verify registry connectivity from clusters: `curl -X GET http://localhost:5000/v2/_catalog`
-4. Check if container runtime is configured correctly: `docker exec <node-name> cat /etc/containerd/certs.d/localhost:5000/hosts.toml`
+1. Ensure the GitHub Container Registry secret is correctly set up:
+
+```bash
+kubectl get secret github-registry-secret -n container-auth -o yaml
+```
+
+2. Verify imagePullSecrets is correctly referenced in deployments
+3. Check if the image exists in GHCR: `docker pull ghcr.io/your-username/app1:latest`
 
 #### Monitoring Stack Issues
 
@@ -333,9 +339,9 @@ This repository follows a multi-environment strategy:
    - Consider tools like Sealed Secrets for Kubernetes secrets
 
 2. **Access Control**:
-   - Use least privilege principle for CI/CD workflows
+   - Implement RBAC in ArgoCD with project restrictions
    - Set appropriate environment protections in GitHub
-   - Implement proper approvals for production deployments
+   - Require approvals for production deployments
 
 3. **Container Security**:
    - Scan images for vulnerabilities
@@ -347,6 +353,11 @@ This repository follows a multi-environment strategy:
    - Expose services only when necessary
    - Configure proper TLS with cert-manager
 
+5. **ArgoCD Security**:
+   - Regularly update ArgoCD
+   - Use SSO integration for authentication
+   - Enable audit logging
+
 ## 👨‍💻 Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -357,19 +368,6 @@ Contributions are welcome! Please follow these steps:
 4. Push to the branch: `git push origin feature/my-new-feature`
 5. Submit a pull request
 
-For local development, you can use the provided scripts:
-
-```bash
-# Setup development environment
-./kind/setup-kind.sh dev
-./infrastructure/local-registry/setup-registry.sh
-
-# Validate code
-# Install pre-commit hooks for validation
-pip install pre-commit
-pre-commit install
-```
-
 Check the [CONTRIBUTING](docs/CONTRIBUTING.md) file for details
 
 ## 📄 License
@@ -378,4 +376,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Note**: This documentation assumes you're using the repository locally or in a private GitHub repository. For production use, consider additional security measures and proper CI/CD pipelines with appropriate approvals.
+**Note**: This README describes a GitOps implementation where ArgoCD continuously synchronizes the desired state defined in your Git repository with the actual state in your Kubernetes clusters. For production use, consider additional security measures and proper CI/CD pipelines with appropriate approvals.
