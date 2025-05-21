@@ -1,1 +1,43 @@
-
+# File: infrastructure/argocd/applications/apps.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  generators:
+  - matrix:
+      generators:
+      - list:
+          elements:
+          - app: app1
+          - app: app2
+      - list:
+          elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+          - env: qa
+            cluster: https://kubernetes.default.svc
+          - env: prod
+            cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: '{{app}}-{{env}}'
+      namespace: argocd
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: applications
+      source:
+        repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+        targetRevision: HEAD
+        path: apps/{{app}}/overlays/{{env}}
+      destination:
+        server: '{{cluster}}'
+        namespace: '{{app}}-{{env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true

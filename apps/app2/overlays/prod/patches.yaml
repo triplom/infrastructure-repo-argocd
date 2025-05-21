@@ -1,0 +1,25 @@
+# File: apps/app2/overlays/prod/patches.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app2-config
+data:
+  ENVIRONMENT: "production"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: app2
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"

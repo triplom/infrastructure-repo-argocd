@@ -1,0 +1,15 @@
+# File: apps/app2/base/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: app2
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: app2
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s

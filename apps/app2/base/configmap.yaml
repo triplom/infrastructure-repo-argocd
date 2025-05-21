@@ -1,0 +1,7 @@
+# File: apps/app2/base/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app2-config
+data:
+  ENVIRONMENT: "base"

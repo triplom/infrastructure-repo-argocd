@@ -1,1 +1,19 @@
-
+# File: infrastructure/argocd/projects/applications.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  description: Project for all applications
+  sourceRepos:
+  - '*'
+  destinations:
+  - namespace: 'app*'
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'

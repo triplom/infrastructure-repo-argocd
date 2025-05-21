@@ -1,0 +1,14 @@
+# File: apps/app2/overlays/dev/patches.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app2-config
+data:
+  ENVIRONMENT: "development"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 1

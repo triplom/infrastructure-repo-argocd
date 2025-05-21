@@ -1,1 +1,26 @@
-
+# File: infrastructure/argocd/applications/infrastructure.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+    targetRevision: HEAD
+    path: infrastructure
+    directory:
+      recurse: true
+      exclude: |
+        - argocd/**
+        - github-registry/**
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,17 +1,21 @@
-# infrastructure/argocd/applications/root.yaml
+# File: infrastructure/argocd/applications/root.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: root
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/your-org/infrastructure-repo-argocd.git
+    repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
     targetRevision: HEAD
     path: infrastructure/argocd/applications
     directory:
-      exclude: {path: root.yaml}
+      recurse: true
+      exclude: |
+        root.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
