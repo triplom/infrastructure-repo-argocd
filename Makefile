@@ -139,7 +139,7 @@ update-image:
 	fi
 	@echo "Updating app1 image to version $(VERSION)..."
 	cd src/app1 && \
-	docker build -t ghcr.io/triplom/app1:$(VERSION) . && \
+	docker build -t ghcr.io/triplom-argocd/app1:$(VERSION) . && \
 	docker push ghcr.io/triplom/app1:$(VERSION) && \
 	cd ../.. && \
 	./update-image.sh app1 $(VERSION)
