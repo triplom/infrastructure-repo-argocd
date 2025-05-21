@@ -124,8 +124,8 @@ jobs:
       - name: Update application configuration
         run: |
           # Checkout the config repository
-          git clone https://github.com/triplom/infrastructure-repo.git
-          cd infrastructure-repo
+          git clone https://github.com/triplom/infrastructure-repo-argocd.git
+          cd infrastructure-repo-argocd
           
           # Update the image tag in the base deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
@@ -147,4 +147,4 @@ jobs:
           git config --global user.name "GitHub Actions"
           git add .
           git commit -m "Update image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
-          git push https://${{ github.action }}://${{ secrets.GITHUB_TOKEN }}@github.com/triplom/infrastructure-repo.git main
+          git push https://${{ github.action }}://${{ secrets.GITHUB_TOKEN }}@github.com/triplom/infrastructure-repo-argocd.git main
