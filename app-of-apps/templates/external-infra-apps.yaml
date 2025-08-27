@@ -25,7 +25,7 @@ spec:
       source:
         repoURL: https://github.com/triplom/infrastructure-repo.git
         targetRevision: {{ .Values.externalApps.infraRepo.targetRevision }}
-        path: apps/app2/overlays/{{`{{env}}`}}
+        path: k8s/overlays/{{`{{env}}`}}
       destination:
         server: '{{`{{cluster}}`}}'
         namespace: external-app-{{`{{env}}`}}

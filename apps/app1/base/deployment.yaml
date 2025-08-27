@@ -18,9 +18,6 @@ spec:
         prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
-       # Add image pull secrets for GHCR
-      imagePullSecrets:
-      - name: github-registry-secret
       containers:
       - name: app1
         # Use GHCR image path instead of localhost:5000
