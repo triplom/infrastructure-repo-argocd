@@ -17,7 +17,7 @@ spec:
         cluster: https://kubernetes.default.svc
   template:
     metadata:
-      name: 'app1-{{env}}'
+      name: 'app1-{{`{{env}}`}}'
       namespace: argocd
       finalizers:
       - resources-finalizer.argocd.argoproj.io
@@ -26,10 +26,10 @@ spec:
       source:
         repoURL: {{ .Values.targetRepo }}
         targetRevision: {{ .Values.targetRevision }}
-        path: apps/app1/overlays/{{env}}
+        path: apps/app1/overlays/{{`{{env}}`}}
       destination:
-        server: '{{cluster}}'
-        namespace: 'app1-{{env}}'
+        server: '{{`{{cluster}}`}}'
+        namespace: 'app1-{{`{{env}}`}}'
       syncPolicy:
         automated:
           prune: true

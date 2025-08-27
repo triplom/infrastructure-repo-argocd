@@ -1,4 +1,5 @@
 # Master Thesis Chapter Updates
+
 ## ArgoCD App-of-Apps Implementation (Pull-Based GitOps)
 
 ### Chapter Structure Updates Based on Implementation
@@ -185,11 +186,13 @@ The testing approach validates both functional requirements and non-functional a
 ### 4.2 Functional Testing
 
 #### 4.2.1 Application Deployment Testing
+
 - Multi-environment deployment validation
 - Configuration drift detection and resolution
 - Rollback capabilities testing
 
 #### 4.2.2 Infrastructure Management Testing
+
 - Infrastructure component deployment
 - SSL certificate automation
 - Ingress routing validation
@@ -197,11 +200,13 @@ The testing approach validates both functional requirements and non-functional a
 ### 4.3 Performance Testing
 
 #### 4.3.1 Sync Performance
+
 - Application sync time measurements
 - Large-scale deployment testing
 - Resource utilization monitoring
 
 #### 4.3.2 Scalability Testing
+
 - Multiple application management
 - Concurrent deployment handling
 - Resource constraint testing
