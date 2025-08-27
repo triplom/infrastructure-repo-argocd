@@ -5,13 +5,19 @@ metadata:
   name: cert-manager
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
   source:
-    repoURL: {{ .Values.targetRepo }}
-    targetRevision: {{ .Values.targetRevision }}
-    path: infrastructure/cert-manager
+    repoURL: https://charts.jetstack.io
+    targetRevision: v1.13.1
+    chart: cert-manager
+    helm:
+      values: |
+        installCRDs: true
+        global:
+          leaderElection:
+            namespace: cert-manager
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager
@@ -20,5 +26,6 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true
+    - Replace=true
 {{ end }}

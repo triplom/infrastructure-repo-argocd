@@ -4,8 +4,6 @@ argocd:
     enabled: true
   ingressNginx:
     enabled: true
-  monitoring:
-    enabled: true
   
 # Target repository for infrastructure components
 targetRepo: https://github.com/triplom/infrastructure-repo-argocd.git

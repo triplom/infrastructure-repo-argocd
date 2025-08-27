@@ -1,18 +1,50 @@
 
-{{ if .Values.argocd.grafana.enabled }}
+{{ if .Values.argocd.monitoring.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: grafana
+  name: monitoring-stack
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: monitoring
   source:
-    repoURL: {{ .Values.targetRepo }}
-    targetRevision: {{ .Values.targetRevision }}
-    path: monitoring/grafana
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 51.2.0
+    chart: kube-prometheus-stack
+    helm:
+      values: |
+        namespaceOverride: monitoring
+        prometheus:
+          prometheusSpec:
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: standard
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 10Gi
+        grafana:
+          adminPassword: admin123
+          service:
+            type: NodePort
+            nodePort: 32000
+          persistence:
+            enabled: true
+            storageClassName: standard
+            size: 5Gi
+        alertmanager:
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: standard
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -21,5 +53,7 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true
+    - Replace=true
+    - ServerSideApply=true
 {{ end }}

@@ -5,13 +5,30 @@ metadata:
   name: ingress-nginx
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
   source:
-    repoURL: {{ .Values.targetRepo }}
-    targetRevision: {{ .Values.targetRevision }}
-    path: infrastructure/ingress-nginx
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    targetRevision: 4.8.3
+    chart: ingress-nginx
+    helm:
+      values: |
+        controller:
+          service:
+            type: NodePort
+          nodeSelector:
+            ingress-ready: 'true'
+          tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Equal
+            effect: NoSchedule
+          - key: node-role.kubernetes.io/master
+            operator: Equal
+            effect: NoSchedule
+          config:
+            use-forwarded-headers: "true"
+            compute-full-forwarded-for: "true"
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
@@ -20,5 +37,6 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true
+    - Replace=true
 {{ end }}
