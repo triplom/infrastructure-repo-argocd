@@ -121,21 +121,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Update application configuration
+      - name: Update application configuration in external repo
+        env:
+          CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
         run: |
-          # Checkout the config repository
-          git clone https://github.com/triplom/infrastructure-repo-argocd.git
-          cd infrastructure-repo-argocd
+          # Checkout the external infrastructure repository
+          git clone https://${{ github.actor }}:$CONFIG_REPO_PAT@github.com/triplom/infrastructure-repo.git
+          cd infrastructure-repo
           
-          # Update the image tag in the base deployment
+          # Update the image tag in the deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
           
           # If component is 'all' or specifically 'app1', update the config
           if [[ "${{ env.COMPONENT }}" == "all" || "${{ env.COMPONENT }}" == "app1" ]]; then
             echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
-            if [ -f "apps/app1/${{ env.ENVIRONMENT }}/deployment.yaml" ]; then
-              sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/${{ env.ENVIRONMENT }}/deployment.yaml
-            else
+            if [ -f "apps/app1/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
+              # Update using kustomize image replacement
+              cd apps/app1/overlays/${{ env.ENVIRONMENT }}
+              kustomize edit set image app1=$IMAGE_TAG
+              cd ../../../../
+            elif [ -f "apps/app1/base/deployment.yaml" ]; then
               sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
             fi
           else
@@ -146,5 +151,5 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add .
-          git commit -m "Update image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
-          git push https://${{ github.action }}://${{ secrets.GITHUB_TOKEN }}@github.com/triplom/infrastructure-repo-argocd.git main
+          git commit -m "Update app1 image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
+          git push origin main

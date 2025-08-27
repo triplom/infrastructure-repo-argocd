@@ -1,0 +1,12 @@
+# Root application configuration
+apps:
+  applications:
+    enabled: true
+  monitoring:
+    enabled: true
+  infrastructure:
+    enabled: true
+
+# Repository configuration
+repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+targetRevision: HEAD

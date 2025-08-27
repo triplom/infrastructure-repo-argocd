@@ -7,7 +7,8 @@ metadata:
 spec:
   description: Project for infrastructure components
   sourceRepos:
-  - '*'
+  - 'https://github.com/triplom/infrastructure-repo.git'
+  - 'https://github.com/triplom/infrastructure-repo-argocd.git'
   destinations:
   - namespace: '*'
     server: https://kubernetes.default.svc

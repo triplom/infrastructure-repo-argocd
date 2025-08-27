@@ -1,0 +1,5 @@
+# Chart.yaml
+apiVersion: v2
+name: app-of-apps-infra
+description: A Helm chart for app-of-apps infrastructure components
+version: 0.1.0

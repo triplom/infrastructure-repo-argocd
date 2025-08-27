@@ -1,0 +1,10 @@
+# Applications configuration
+argocd:
+  app1:
+    enabled: true
+  app2:
+    enabled: true
+
+# Target repository for applications
+targetRepo: https://github.com/triplom/infrastructure-repo.git
+targetRevision: HEAD

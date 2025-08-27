@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  description: Monitoring project for Prometheus, Grafana, and related tools
+  sourceRepos:
+  - 'https://github.com/triplom/infrastructure-repo.git'
+  - 'https://github.com/triplom/infrastructure-repo-argocd.git'
+  destinations:
+  - namespace: 'monitoring*'
+    server: https://kubernetes.default.svc
+  - namespace: argocd
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: ''
+    kind: ClusterRole
+  - group: ''
+    kind: ClusterRoleBinding
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRole
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRoleBinding
+  - group: 'apiextensions.k8s.io'
+    kind: CustomResourceDefinition
+  - group: 'admissionregistration.k8s.io'
+    kind: MutatingWebhookConfiguration
+  - group: 'admissionregistration.k8s.io'
+    kind: ValidatingWebhookConfiguration
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: '*'
+  - group: 'apps'
+    kind: '*'
+  - group: 'extensions'
+    kind: '*'
+  - group: 'networking.k8s.io'
+    kind: '*'
+  - group: 'monitoring.coreos.com'
+    kind: '*'

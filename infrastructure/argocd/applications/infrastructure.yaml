@@ -9,7 +9,7 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+    repoURL: https://github.com/triplom/infrastructure-repo.git
     targetRevision: HEAD
     path: infrastructure
     directory:

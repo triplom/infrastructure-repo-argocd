@@ -1,0 +1,12 @@
+# Infrastructure components configuration
+argocd:
+  certManager:
+    enabled: true
+  ingressNginx:
+    enabled: true
+  monitoring:
+    enabled: true
+  
+# Target repository for infrastructure components
+targetRepo: https://github.com/triplom/infrastructure-repo.git
+targetRevision: HEAD

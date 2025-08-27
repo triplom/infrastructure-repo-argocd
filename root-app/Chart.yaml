@@ -1,0 +1,5 @@
+# Chart.yaml
+apiVersion: v2
+name: root-app
+description: Root app-of-apps pattern for managing all ArgoCD applications
+version: 0.1.0

@@ -1,0 +1,12 @@
+# Monitoring components configuration
+argocd:
+  prometheus:
+    enabled: true
+    ingress: "https://prometheus-mycompany.com"
+  grafana:
+    enabled: true
+    ingress: "https://grafana-mycompany.com"
+
+# Target repository for monitoring components
+targetRepo: https://github.com/triplom/infrastructure-repo.git
+targetRevision: HEAD
