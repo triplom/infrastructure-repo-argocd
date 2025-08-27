@@ -8,5 +8,5 @@ argocd:
     ingress: "https://grafana-mycompany.com"
 
 # Target repository for monitoring components
-targetRepo: https://github.com/triplom/infrastructure-repo.git
+targetRepo: https://github.com/triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD

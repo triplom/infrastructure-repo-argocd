@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Monitoring project for Prometheus, Grafana, and related tools
   sourceRepos:
-  - 'https://github.com/triplom/infrastructure-repo.git'
+  - 'https://github.com/triplom/infrastructure-repo-argocd.git'
   - 'https://github.com/triplom/infrastructure-repo-argocd.git'
   destinations:
   - namespace: 'monitoring*'
