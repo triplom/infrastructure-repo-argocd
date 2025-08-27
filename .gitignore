@@ -39,3 +39,9 @@ var/
 
 # Base64 encoded secrets
 *-base64.txt
+infrastructure/argocd/repositories/github-repo.yaml
+
+# ArgoCD repository credentials
+infrastructure/argocd/repositories/github-repo.yaml
+*.token
+*.credentials

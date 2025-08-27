@@ -3,6 +3,7 @@
 ## Test Environment Setup
 
 ### Prerequisites
+
 - Kubernetes cluster (Kind/GKE/EKS/AKS)
 - ArgoCD installed and configured
 - Access to GitHub repositories
@@ -15,9 +16,11 @@
 ## 1. Functional Testing Scenarios
 
 ### Test Case 1.1: Root Application Bootstrap
+
 **Objective**: Validate the complete bootstrap process of the app-of-apps pattern
 
 **Test Steps**:
+
 ```bash
 # Step 1: Bootstrap the entire system
 ./bootstrap.sh
@@ -33,6 +36,7 @@ kubectl get applications -n argocd
 ```
 
 **Expected Results**:
+
 - Root application status: Synced and Healthy
 - All child app-of-apps applications created:
   - app-of-apps
@@ -41,6 +45,7 @@ kubectl get applications -n argocd
 - No sync errors in ArgoCD UI
 
 **Success Criteria**:
+
 - All applications show "Synced" and "Healthy" status
 - No error events in kubectl describe output
 - ArgoCD UI shows green status for all applications
@@ -48,9 +53,11 @@ kubectl get applications -n argocd
 ---
 
 ### Test Case 1.2: Multi-Environment Application Deployment
+
 **Objective**: Validate ApplicationSet deployment across dev/qa/prod environments
 
 **Test Steps**:
+
 ```bash
 # Step 1: Verify ApplicationSet creation
 kubectl get applicationset -n argocd
@@ -70,12 +77,14 @@ done
 ```
 
 **Expected Results**:
+
 - ApplicationSets created successfully
 - 6 applications generated (app1 and app2 × 3 environments each)
 - All environment namespaces created
 - Pods running in each environment namespace
 
 **Success Criteria**:
+
 - ApplicationSet reports 3 applications for each app
 - All pods in Running state
 - Services accessible within cluster
@@ -83,9 +92,11 @@ done
 ---
 
 ### Test Case 1.3: Infrastructure Component Deployment
+
 **Objective**: Validate infrastructure components deployment through app-of-apps-infra
 
 **Test Steps**:
+
 ```bash
 # Step 1: Check infrastructure applications
 kubectl get applications -l app=infrastructure -n argocd
@@ -104,12 +115,14 @@ kubectl get servicemonitors -n monitoring
 ```
 
 **Expected Results**:
+
 - Infrastructure applications synced and healthy
 - cert-manager pods running with CRDs installed
 - ingress-nginx controller pod running with LoadBalancer service
 - Monitoring infrastructure components deployed
 
 **Success Criteria**:
+
 - All infrastructure pods in Running state
 - Required CRDs installed
 - Services properly exposed
@@ -119,9 +132,11 @@ kubectl get servicemonitors -n monitoring
 ## 2. CI/CD Integration Testing
 
 ### Test Case 2.1: Application Update via CI/CD
+
 **Objective**: Test the complete CI/CD pipeline integration with GitOps
 
 **Test Setup**:
+
 ```bash
 # Set up test environment variables
 export TEST_IMAGE="ghcr.io/triplom/app1:test-$(date +%s)"
@@ -129,6 +144,7 @@ export GITHUB_TOKEN="your-token-here"
 ```
 
 **Test Steps**:
+
 ```bash
 # Step 1: Simulate CI/CD pipeline update
 cd /home/marcel/ISCTE/THESIS/push-based/infrastructure-repo
@@ -151,12 +167,14 @@ kubectl get deployment app1 -n app1-dev -o jsonpath='{.spec.template.spec.contai
 ```
 
 **Expected Results**:
+
 - Git commit successful
 - ArgoCD detects change within sync interval (default 3 minutes)
 - Application automatically syncs to new image
 - Deployment updated with new image tag
 
 **Success Criteria**:
+
 - Application sync status changes to "Synced"
 - Deployment image matches test image tag
 - No sync errors reported
@@ -165,9 +183,11 @@ kubectl get deployment app1 -n app1-dev -o jsonpath='{.spec.template.spec.contai
 ---
 
 ### Test Case 2.2: Configuration Drift Detection and Resolution
+
 **Objective**: Test ArgoCD's ability to detect and resolve configuration drift
 
 **Test Steps**:
+
 ```bash
 # Step 1: Record current state
 kubectl get deployment app1 -n app1-dev -o yaml > original-deployment.yaml
@@ -186,12 +206,14 @@ kubectl get deployment app1 -n app1-dev -o jsonpath='{.spec.replicas}'
 ```
 
 **Expected Results**:
+
 - Manual change creates drift (OutOfSync status)
 - ArgoCD detects configuration drift
 - Auto-healing restores desired state
 - Application returns to Synced status
 
 **Success Criteria**:
+
 - Sync status changes to "OutOfSync" after manual change
 - Auto-healing or manual sync restores original configuration
 - Final state matches Git repository definition
@@ -201,9 +223,11 @@ kubectl get deployment app1 -n app1-dev -o jsonpath='{.spec.replicas}'
 ## 3. Security and RBAC Testing
 
 ### Test Case 3.1: Project-based Access Control
+
 **Objective**: Validate ArgoCD project-based RBAC implementation
 
 **Test Steps**:
+
 ```bash
 # Step 1: Verify projects exist
 kubectl get appprojects -n argocd
@@ -236,12 +260,14 @@ EOF
 ```
 
 **Expected Results**:
+
 - All projects properly configured
 - Repository restrictions enforced
 - Namespace access controlled per project
 - Unauthorized operations blocked
 
 **Success Criteria**:
+
 - Projects show correct source repositories
 - Unauthorized repository access denied
 - Namespace restrictions enforced
@@ -252,9 +278,11 @@ EOF
 ## 4. Performance and Scalability Testing
 
 ### Test Case 4.1: Sync Performance Measurement
+
 **Objective**: Measure application synchronization performance
 
 **Test Steps**:
+
 ```bash
 # Step 1: Create performance test script
 cat <<'EOF' > sync-performance-test.sh
@@ -291,12 +319,14 @@ done
 ```
 
 **Expected Results**:
+
 - All applications sync successfully
 - Sync times within acceptable limits
 - No timeout errors
 - Resource utilization within bounds
 
 **Success Criteria**:
+
 - Total sync time < 5 minutes for all applications
 - Individual application sync time < 2 minutes
 - CPU/Memory usage within cluster limits
@@ -305,9 +335,11 @@ done
 ---
 
 ### Test Case 4.2: Large-Scale Deployment Testing
+
 **Objective**: Test system behavior with increased application count
 
 **Test Setup**:
+
 ```bash
 # Create additional test applications
 for i in {3..10}; do
@@ -351,6 +383,7 @@ done
 ```
 
 **Test Steps**:
+
 ```bash
 # Step 1: Deploy additional applications via ApplicationSet
 kubectl apply -f large-scale-applicationset.yaml
@@ -367,12 +400,14 @@ kubectl get applications -n argocd | grep -v Synced
 ```
 
 **Expected Results**:
+
 - System handles increased application count
 - Resource usage remains within acceptable limits
 - All applications sync successfully
 - No performance degradation
 
 **Success Criteria**:
+
 - All applications reach Synced status
 - ArgoCD components remain stable
 - Cluster resources not exhausted
@@ -383,9 +418,11 @@ kubectl get applications -n argocd | grep -v Synced
 ## 5. Monitoring and Observability Testing
 
 ### Test Case 5.1: GitOps Metrics Validation
+
 **Objective**: Validate monitoring stack and GitOps metrics collection
 
 **Test Steps**:
+
 ```bash
 # Step 1: Verify monitoring stack deployment
 kubectl get pods -n monitoring
@@ -406,12 +443,14 @@ curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name =
 ```
 
 **Expected Results**:
+
 - Monitoring stack fully operational
 - ArgoCD metrics being collected
 - Grafana dashboards showing GitOps data
 - Alert rules properly configured
 
 **Success Criteria**:
+
 - All monitoring pods in Running state
 - ArgoCD metrics available in Prometheus
 - Grafana dashboards accessible and populated
@@ -422,9 +461,11 @@ curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name =
 ## 6. Disaster Recovery Testing
 
 ### Test Case 6.1: Complete System Recovery
+
 **Objective**: Test recovery from complete system failure
 
 **Test Steps**:
+
 ```bash
 # Step 1: Backup current state
 kubectl get applications -n argocd -o yaml > applications-backup.yaml
@@ -448,12 +489,14 @@ kubectl get pods --all-namespaces | grep -E "(app1|app2|monitoring|cert-manager|
 ```
 
 **Expected Results**:
+
 - Complete system restoration
 - All applications redeployed
 - Data consistency maintained
 - No manual intervention required
 
 **Success Criteria**:
+
 - Bootstrap script completes successfully
 - All applications reach Synced status
 - Application data restored correctly
@@ -464,6 +507,7 @@ kubectl get pods --all-namespaces | grep -E "(app1|app2|monitoring|cert-manager|
 ## Test Execution Framework
 
 ### Automated Test Suite
+
 ```bash
 #!/bin/bash
 # comprehensive-test-suite.sh
@@ -514,12 +558,14 @@ cat "$RESULTS_DIR/summary.txt"
 ```
 
 ### Test Metrics Collection
+
 - Sync time measurements
 - Resource utilization tracking
 - Error rate monitoring
 - Recovery time objectives
 
 ### Success Criteria Definition
+
 - **Functional**: All applications deploy and operate correctly
 - **Performance**: Sync times within acceptable limits
 - **Security**: RBAC properly enforced
@@ -531,13 +577,16 @@ cat "$RESULTS_DIR/summary.txt"
 ## Test Report Template
 
 ### Executive Summary
+
 - Total tests executed: X
 - Passed: Y
 - Failed: Z
 - Overall success rate: (Y/X * 100)%
 
 ### Detailed Results
+
 For each test case:
+
 - Test objective
 - Execution status
 - Performance metrics
@@ -545,6 +594,7 @@ For each test case:
 - Recommendations
 
 ### Recommendations
+
 - Performance optimizations
 - Security enhancements
 - Operational improvements
