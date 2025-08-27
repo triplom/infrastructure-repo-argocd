@@ -1,0 +1,38 @@
+{{ if .Values.argocd.externalApps.phpWebApp.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: php-web-app
+  namespace: argocd
+spec:
+  generators:
+  - list:
+      elements:
+      - env: dev
+        cluster: https://kubernetes.default.svc
+      - env: qa
+        cluster: https://kubernetes.default.svc
+      - env: prod
+        cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: 'php-web-app-{{`{{env}}`}}'
+      namespace: argocd
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: applications
+      source:
+        repoURL: https://github.com/triplom/k8s-web-app-php.git
+        targetRevision: {{ .Values.externalApps.phpWebApp.targetRevision }}
+        path: apps/k8s-web-app-php/k8s/overlays/{{`{{env}}`}}
+      destination:
+        server: '{{`{{cluster}}`}}'
+        namespace: php-web-app-{{`{{env}}`}}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+{{ end }}
