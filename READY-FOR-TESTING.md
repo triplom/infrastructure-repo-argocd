@@ -3,6 +3,7 @@
 ## ✅ Current Status: Ready for CI/CD Pipeline Validation
 
 **All prerequisites completed**:
+
 - ✅ GHCR_TOKEN Personal Access Token created and configured
 - ✅ CI pipeline updated to use PAT authentication  
 - ✅ Setup workflow updated to use PAT authentication
@@ -12,16 +13,18 @@
 ## 🧪 Testing Steps (Choose One)
 
 ### Option 1: Test GHCR Setup Workflow (Recommended First Test)
+
 ```bash
 # This tests basic GHCR connectivity with a simple hello-world container
-1. Go to: https://github.com/triplom/infrastructure-repo-argocd/actions
+1. Go to: [GitHub Actions](https://github.com/triplom/infrastructure-repo-argocd/actions)
 2. Click "Setup GitHub Container Registry" workflow
 3. Click "Run workflow" → "Run workflow" (use default branch: main)
 4. Watch the workflow logs for success
 ```
 
 **Expected Success Output**:
-```
+
+```bash
 ✅ Login to GHCR successful
 ✅ Docker build completes  
 ✅ Docker push to ghcr.io/triplom/app1:test succeeds
@@ -29,18 +32,20 @@
 ```
 
 ### Option 2: Test Main CI Pipeline
+
 ```bash
 # This tests the full application build and deployment pipeline
-1. Go to: https://github.com/triplom/infrastructure-repo-argocd/actions  
+1. Go to: [GitHub Actions](https://github.com/triplom/infrastructure-repo-argocd/actions)  
 2. Click "CI Pipeline" workflow
 3. Click "Run workflow" → Select environment (dev/test/prod) → "Run workflow"
 4. Watch for successful build, test, and GHCR push
 ```
 
 ### Option 3: Re-run Previous Failed Workflow
+
 ```bash
 # This retests the exact scenario that was failing
-1. Go to: https://github.com/triplom/infrastructure-repo-argocd/actions
+1. Go to: [GitHub Actions](https://github.com/triplom/infrastructure-repo-argocd/actions)
 2. Find the failed "Setup GitHub Container Registry #2" run
 3. Click "Re-run failed jobs"
 4. Should now succeed with GHCR_TOKEN authentication
@@ -48,19 +53,22 @@
 
 ## 📊 Success Indicators to Watch For
 
-### ✅ Workflow Success Signals:
+### ✅ Workflow Success Signals
+
 - **Green checkmark** instead of red X on workflow run
 - **No "permission_denied"** errors in logs
 - **"Successfully pushed"** message in Docker push step
 - **Package creation** confirmation message
 
-### ✅ Package Verification:
-- Visit: https://github.com/triplom/packages  
+### ✅ Package Verification
+
+- Visit: [GitHub Packages](https://github.com/triplom/packages)  
 - Should see `app1` package listed
 - Package shows recent timestamp
 - Container shows proper tags (test, latest, etc.)
 
-### ✅ Container Pull Test:
+### ✅ Container Pull Test
+
 ```bash
 # After successful push, test pulling the container
 docker pull ghcr.io/triplom/app1:test
@@ -69,14 +77,16 @@ docker pull ghcr.io/triplom/app1:test
 
 ## 🔍 Troubleshooting (If Still Failing)
 
-### Check Secret Configuration:
+### Check Secret Configuration
+
 ```bash
 # Verify the secret exists (this won't show the value, just confirms it exists)
-# Go to: https://github.com/triplom/infrastructure-repo-argocd/settings/secrets/actions
+# Go to: [Repository Secrets](https://github.com/triplom/infrastructure-repo-argocd/settings/secrets/actions)
 # Should see "GHCR_TOKEN" listed under Repository secrets
 ```
 
-### Verify PAT Permissions:
+### Verify PAT Permissions
+
 ```bash
 # Ensure your Personal Access Token has these scopes:
 - ✅ write:packages
@@ -86,12 +96,14 @@ docker pull ghcr.io/triplom/app1:test
 
 ## 🚀 After Successful GHCR Test
 
-### Validate Complete GitOps Workflow:
+### Validate Complete GitOps Workflow
+
 1. **Test ArgoCD Sync**: Verify ArgoCD can pull new container images
 2. **Test Image Updates**: Use the update-image.sh script to change app versions
 3. **Validate Deployment**: Check that applications deploy with new images
 
-### Test External Repository Integration:
+### Test External Repository Integration
+
 1. **Apply Same Fix**: Update external repos with GHCR_TOKEN method
 2. **Test Cross-Repo**: Verify external applications can also push to GHCR
 3. **Validate ApplicationSets**: Ensure external apps deploy via ArgoCD
@@ -116,7 +128,7 @@ kubectl get applications -n argocd | head -5
 
 **RECOMMENDED**: Start with Option 1 (GHCR Setup Workflow test) as it's the simplest validation that the permission issue is resolved.
 
-**URL**: https://github.com/triplom/infrastructure-repo-argocd/actions
+**URL**: [GitHub Actions](https://github.com/triplom/infrastructure-repo-argocd/actions)
 
 ---
 
