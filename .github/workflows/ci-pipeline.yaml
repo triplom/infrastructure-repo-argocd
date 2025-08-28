@@ -125,9 +125,9 @@ jobs:
         env:
           CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
         run: |
-          # Checkout the external infrastructure repository
-          git clone https://${{ github.actor }}:$CONFIG_REPO_PAT@github.com/triplom/infrastructure-repo.git
-          cd infrastructure-repo
+          # Checkout the ArgoCD infrastructure repository
+          git clone https://${{ github.actor }}:$CONFIG_REPO_PAT@github.com/triplom/infrastructure-repo-argocd.git
+          cd infrastructure-repo-argocd
           
           # Update the image tag in the deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
