@@ -124,42 +124,68 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write  # Allow pushing to repository
+      pull-requests: write
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
       COMPONENT: ${{ github.event.inputs.component || 'all' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
       
-      - name: Update application configuration in external repo
-        env:
-          CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
+      - name: Update application configuration
         run: |
-          # Checkout the ArgoCD infrastructure repository
-          git clone https://${{ github.actor }}:$CONFIG_REPO_PAT@github.com/triplom/infrastructure-repo-argocd.git
-          cd infrastructure-repo-argocd
-          
           # Update the image tag in the deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
           
-          # If component is 'all' or specifically 'app1', update the config
-          if [[ "${{ env.COMPONENT }}" == "all" || "${{ env.COMPONENT }}" == "app1" ]]; then
-            echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
-            if [ -f "apps/app1/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
-              # Update using kustomize image replacement
-              cd apps/app1/overlays/${{ env.ENVIRONMENT }}
-              kustomize edit set image app1=$IMAGE_TAG
-              cd ../../../../
-            elif [ -f "apps/app1/base/deployment.yaml" ]; then
-              sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
+          echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
+          echo "New image tag: $IMAGE_TAG"
+          
+          # Check if the environment overlay exists
+          if [ -f "apps/app1/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
+            echo "Using kustomize to update image in overlay"
+            cd apps/app1/overlays/${{ env.ENVIRONMENT }}
+            
+            # Install kustomize if not available
+            if ! command -v kustomize &> /dev/null; then
+              curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+              sudo mv kustomize /usr/local/bin/
             fi
+            
+            # Update image using kustomize
+            kustomize edit set image app1=$IMAGE_TAG
+            cd ../../../../
+            
+          elif [ -f "apps/app1/base/deployment.yaml" ]; then
+            echo "Updating base deployment.yaml directly"
+            sed -i "s|image: .*app1:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
           else
-            echo "Skipping app1 update as component filter is: ${{ env.COMPONENT }}"
+            echo "No deployment files found to update"
+            exit 0
           fi
           
-          # Commit and push the changes
+          # Check if there are any changes to commit
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          # Configure git
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
+          
+          # Commit and push the changes
           git add .
-          git commit -m "Update app1 image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
+          git commit -m "🚀 Update app1 image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment
+
+          Auto-update from CI/CD pipeline
+          - Environment: ${{ env.ENVIRONMENT }}
+          - Component: ${{ env.COMPONENT }}
+          - Image: $IMAGE_TAG
+          - Triggered by: ${{ github.actor }}"
+          
           git push origin main

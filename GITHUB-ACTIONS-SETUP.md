@@ -96,6 +96,7 @@ After successful deployment, packages will be available at:
 **Update**: Personal Access Token has been created and configured.
 
 **Current Configuration**:
+
 - ✅ GHCR_TOKEN secret added to repository
 - ✅ CI pipeline updated to use Personal Access Token
 - ✅ Enhanced permissions and latest action versions applied
@@ -108,12 +109,14 @@ The pipeline now uses `${{ secrets.GHCR_TOKEN }}` instead of `${{ secrets.GITHUB
 **CRITICAL**: These steps must be completed in the GitHub repository settings:
 
 #### Step 1: Enable Repository Packages
+
 1. Go to **Repository Settings** → **General** → **Features**
 2. Scroll down to **"Features"** section
 3. ✅ **Enable "Packages"** checkbox
 4. Click **"Save"**
 
 #### Step 2: Configure Actions Permissions
+
 1. Go to **Repository Settings** → **Actions** → **General**
 2. Under **"Workflow permissions"**:
    - ✅ Select **"Read and write permissions"**
@@ -121,6 +124,7 @@ The pipeline now uses `${{ secrets.GHCR_TOKEN }}` instead of `${{ secrets.GITHUB
 3. Click **"Save"**
 
 #### Step 3: Set Package Permissions (Critical)
+
 1. Go to **Repository Settings** → **Actions** → **General**
 2. Scroll to **"Fork pull request workflows"** section
 3. Under **"Actions permissions"**:
@@ -129,6 +133,7 @@ The pipeline now uses `${{ secrets.GHCR_TOKEN }}` instead of `${{ secrets.GITHUB
    - Set package visibility to **"Public"** or ensure proper permissions
 
 #### Step 4: Alternative - Personal Access Token Method
+
 If repository settings don't resolve the issue:
 
 1. **Create PAT**:
@@ -144,6 +149,7 @@ If repository settings don't resolve the issue:
    - Value: [paste your PAT token]
 
 3. **Update Workflow** (if using PAT):
+
    ```yaml
    - name: Log in to GitHub Container Registry
      uses: docker/login-action@v3
@@ -154,7 +160,9 @@ If repository settings don't resolve the issue:
    ```
 
 #### Step 5: Repository Visibility Check
+
 If the repository is **private**:
+
 1. Go to **Repository Settings** → **General**
 2. Scroll to **"Danger Zone"**
 3. Consider making repository **public** temporarily to test package publishing
@@ -163,6 +171,7 @@ If the repository is **private**:
 ### 🔍 Diagnostic Commands
 
 Run these to verify settings:
+
 ```bash
 # Check if packages are enabled for the repository
 curl -H "Authorization: token YOUR_TOKEN" \
