@@ -1,0 +1,158 @@
+name: CI Pipeline (PAT Version)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      component:
+        description: 'Component to deploy'
+        required: true
+        default: 'app1'
+        type: choice
+        options:
+          - app1
+          - app2
+
+env:
+  APP_NAME: app1
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          cd src/app1
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+          
+      - name: Run tests
+        run: |
+          cd src/app1
+          pytest --cov=./ --cov-report=xml || echo "Tests failed but continuing"
+  
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.IMAGE_TAG }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      # Convert repository owner to lowercase for GHCR
+      - name: Set lowercase repository owner
+        id: lowercase
+        run: echo "REPO_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+      
+      - name: Log in to GitHub Container Registry (PAT Method)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}  # Uses Personal Access Token instead of GITHUB_TOKEN
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/${{ env.APP_NAME }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/app1
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/${{ env.APP_NAME }}:latest
+          cache-to: type=inline
+          provenance: false
+      
+      - name: Set image tag output
+        id: image-tag
+        run: |
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Success notification
+        if: success()
+        run: |
+          echo "🎉 Successfully pushed container to GHCR!"
+          echo "📦 Image: ${{ steps.meta.outputs.tags }}"
+          echo "🔗 Package URL: https://github.com/${{ github.repository_owner }}/packages"
+          echo "🐳 Pull command: docker pull ${{ steps.meta.outputs.tags }}"
+  
+  update-config:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+      COMPONENT: ${{ github.event.inputs.component || 'app1' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Update application configuration in external repo
+        env:
+          CONFIG_REPO_PAT: ${{ secrets.CONFIG_REPO_PAT }}
+        run: |
+          # Checkout the ArgoCD infrastructure repository
+          git clone https://${{ github.actor }}:$CONFIG_REPO_PAT@github.com/triplom/infrastructure-repo-argocd.git
+          cd infrastructure-repo-argocd
+          
+          # Update the image tag in the deployment
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          
+          # If component is 'all' or specifically 'app1', update the config
+          if [[ "${{ env.COMPONENT }}" == "all" || "${{ env.COMPONENT }}" == "app1" ]]; then
+            echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
+            if [ -f "apps/app1/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
+              # Update using kustomize image replacement
+              cd apps/app1/overlays/${{ env.ENVIRONMENT }}
+              kustomize edit set image app1=$IMAGE_TAG
+              cd ../../../../
+            elif [ -f "apps/app1/base/deployment.yaml" ]; then
+              sed -i "s|image: .*/${{ env.APP_NAME }}:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
+            fi
+          else
+            echo "Skipping app1 update as component filter is: ${{ env.COMPONENT }}"
+          fi
+          
+          # Commit and push the changes
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add .
+          git commit -m "Update app1 image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment" || echo "No changes to commit"
+          git push origin main

@@ -91,14 +91,17 @@ After successful deployment, packages will be available at:
 - **URL**: `https://github.com/triplom/packages`
 - **Registry**: `ghcr.io/triplom/app1`
 
-### ❌ Current Status: Still Failing
+### ✅ Current Status: GHCR_TOKEN Configured
 
-**Error from GitHub Actions**:
-```
-denied: permission_denied: write_package
-```
+**Update**: Personal Access Token has been created and configured.
 
-This indicates additional repository-level configuration is needed.
+**Current Configuration**:
+- ✅ GHCR_TOKEN secret added to repository
+- ✅ CI pipeline updated to use Personal Access Token
+- ✅ Enhanced permissions and latest action versions applied
+- 🔄 Ready for testing
+
+The pipeline now uses `${{ secrets.GHCR_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}` which should resolve the permission issues.
 
 ### 🔧 Required Manual Configuration Steps
 
