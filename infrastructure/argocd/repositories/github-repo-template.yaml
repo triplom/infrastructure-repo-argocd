@@ -1,0 +1,17 @@
+# This is a template for ArgoCD repository configuration
+# Copy this file to github-repo.yaml and replace the placeholder values
+apiVersion: v1
+kind: Secret
+metadata:
+  name: infrastructure-repo-argocd
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  url: https://github.com/triplom/infrastructure-repo-argocd.git
+  username: triplom
+  password: YOUR_GITHUB_TOKEN_HERE
+  insecure: "false"
+  enableLfs: "false"
