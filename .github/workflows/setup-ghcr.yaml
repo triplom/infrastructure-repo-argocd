@@ -1,0 +1,71 @@
+name: Setup GitHub Container Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: 'Cleanup old packages'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  setup-ghcr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: echo "REPO_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Test GHCR connectivity
+        run: |
+          echo "Testing connectivity to GHCR..."
+          docker info
+          echo "Repository owner (lowercase): ${{ steps.lowercase.outputs.REPO_OWNER }}"
+          echo "Expected image name: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/app1:test"
+      
+      - name: Create test image
+        run: |
+          echo "FROM hello-world" > Dockerfile
+          docker build -t ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/app1:test .
+      
+      - name: Push test image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/app1:test || {
+            echo "Push failed. Checking common issues:"
+            echo "1. Repository packages settings"
+            echo "2. Token permissions"
+            echo "3. Repository visibility"
+            exit 1
+          }
+      
+      - name: Cleanup test image
+        if: success()
+        run: |
+          echo "Test successful! Cleaning up test image..."
+          # Note: Package deletion requires additional API calls
+          echo "Manual cleanup required for test image via GitHub UI"
+      
+      - name: Display package URL
+        if: success()
+        run: |
+          echo "✅ GHCR setup successful!"
+          echo "Package will be available at: https://github.com/${{ github.repository_owner }}/packages"
+          echo "Image URL: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.REPO_OWNER }}/app1"
