@@ -9,5 +9,5 @@ patchesStrategicMerge:
 namespace: app2-dev
 images:
 - name: app2
-  newName: ghcr.io/triplom/app2
+  newName: ghcr.io/triplom/app1
   newTag: main
