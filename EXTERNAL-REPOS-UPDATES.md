@@ -4,8 +4,8 @@
 
 Based on the conversation summary, these external repositories also need GitHub Actions pipeline updates:
 
-1. **https://github.com/triplom/infrastructure-repo.git**
-2. **https://github.com/triplom/k8s-web-app-php.git**
+1. **[Infra-repo](https://github.com/triplom/infrastructure-repo.git)**
+2. **[K8s-web-app-php](https://github.com/triplom/k8s-web-app-php.git)**
 
 ## Required Changes for GHCR Permission Fix
 
@@ -13,7 +13,8 @@ Based on the conversation summary, these external repositories also need GitHub 
 
 Apply these changes to any workflow files that build and push Docker images:
 
-#### Before (Problematic):
+#### Before (Problematic)
+
 ```yaml
 env:
   REGISTRY: ghcr.io
@@ -44,7 +45,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
 ```
 
-#### After (Fixed):
+#### After (Fixed)
+
 ```yaml
 env:
   REGISTRY: ghcr.io
@@ -95,13 +97,17 @@ jobs:
 ### 2. Repository-Specific Updates
 
 #### infrastructure-repo.git
+
 If this repository builds infrastructure-related containers:
+
 - Apply the GHCR fixes above
 - Update any image references to use lowercase repository owner
 - Ensure CI/CD pipelines reference the correct ArgoCD repository URL
 
 #### k8s-web-app-php.git
+
 For the PHP web application:
+
 - Apply the GHCR fixes above
 - Update image name to match application (e.g., `php-web-app`)
 - Ensure deployment manifests use the correct image registry format
@@ -111,11 +117,13 @@ For the PHP web application:
 For each external repository, verify these settings:
 
 #### Package Settings
+
 1. Go to **Repository Settings → General → Features**
 2. Ensure **"Packages"** is enabled
 3. Check package visibility settings
 
 #### Actions Permissions
+
 1. Go to **Repository Settings → Actions → General**
 2. Set **"Read and write permissions"** for GITHUB_TOKEN
 3. Enable **"Allow GitHub Actions to create and approve pull requests"**
@@ -167,7 +175,9 @@ jobs:
 After fixing the pipelines, update any references to the container images:
 
 #### In ArgoCD Applications
+
 Update image references in deployment manifests to use lowercase:
+
 ```yaml
 # Before
 image: ghcr.io/Triplom/app-name:latest
@@ -177,7 +187,9 @@ image: ghcr.io/triplom/app-name:latest
 ```
 
 #### In Kustomize Overlays
+
 Update image transformations:
+
 ```yaml
 # kustomization.yaml
 images:
