@@ -24,11 +24,12 @@ on:
         options:
           - all
           - app1
+          - app2
 env:
-  APP_NAME: app1
+  APP_NAME: ${{ github.event.inputs.component || 'app1' }}
   REGISTRY: ghcr.io
   # Convert repository owner to lowercase for GHCR compatibility
-  IMAGE_NAME: ${{ github.repository_owner }}/app1
+  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.inputs.component || 'app1' }}
 
 jobs:
   test:
@@ -47,13 +48,21 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd src/app1
+          COMPONENT="${{ github.event.inputs.component || 'app1' }}"
+          if [ "$COMPONENT" = "all" ]; then
+            COMPONENT="app1"  # Default to app1 for 'all'
+          fi
+          cd src/$COMPONENT
           pip install -r requirements.txt
           pip install pytest pytest-cov
           
       - name: Run tests
         run: |
-          cd src/app1
+          COMPONENT="${{ github.event.inputs.component || 'app1' }}"
+          if [ "$COMPONENT" = "all" ]; then
+            COMPONENT="app1"  # Default to app1 for 'all'
+          fi
+          cd src/$COMPONENT
           pytest --cov=./ --cov-report=xml || echo "Tests failed but continuing"
           
       - name: Upload coverage reports
@@ -105,7 +114,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./src/app1
+          context: ./src/${{ env.APP_NAME }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -141,32 +150,41 @@ jobs:
         run: |
           # Update the image tag in the deployment
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          COMPONENT="${{ env.COMPONENT }}"
           
-          echo "Updating app1 deployment for environment: ${{ env.ENVIRONMENT }}"
-          echo "New image tag: $IMAGE_TAG"
-          
-          # Check if the environment overlay exists
-          if [ -f "apps/app1/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
-            echo "Using kustomize to update image in overlay"
-            cd apps/app1/overlays/${{ env.ENVIRONMENT }}
-            
-            # Install kustomize if not available
-            if ! command -v kustomize &> /dev/null; then
-              curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-              sudo mv kustomize /usr/local/bin/
-            fi
-            
-            # Update image using kustomize
-            kustomize edit set image app1=$IMAGE_TAG
-            cd ../../../../
-            
-          elif [ -f "apps/app1/base/deployment.yaml" ]; then
-            echo "Updating base deployment.yaml directly"
-            sed -i "s|image: .*app1:.*|image: $IMAGE_TAG|g" apps/app1/base/deployment.yaml
+          # If component is 'all', update both app1 and app2
+          if [ "$COMPONENT" = "all" ]; then
+            APPS=("app1" "app2")
           else
-            echo "No deployment files found to update"
-            exit 0
+            APPS=("$COMPONENT")
           fi
+          
+          for APP in "${APPS[@]}"; do
+            echo "Updating $APP deployment for environment: ${{ env.ENVIRONMENT }}"
+            echo "New image tag: $IMAGE_TAG"
+            
+            # Check if the environment overlay exists
+            if [ -f "apps/$APP/overlays/${{ env.ENVIRONMENT }}/kustomization.yaml" ]; then
+              echo "Using kustomize to update image in overlay for $APP"
+              cd apps/$APP/overlays/${{ env.ENVIRONMENT }}
+              
+              # Install kustomize if not available
+              if ! command -v kustomize &> /dev/null; then
+                curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+                sudo mv kustomize /usr/local/bin/
+              fi
+              
+              # Update image using kustomize
+              kustomize edit set image $APP=$IMAGE_TAG
+              cd ../../../../
+              
+            elif [ -f "apps/$APP/base/deployment.yaml" ]; then
+              echo "Updating base deployment.yaml directly for $APP"
+              sed -i "s|image: .*$APP:.*|image: $IMAGE_TAG|g" apps/$APP/base/deployment.yaml
+            else
+              echo "No deployment files found to update for $APP"
+            fi
+          done
           
           # Check if there are any changes to commit
           if git diff --quiet; then
@@ -180,7 +198,7 @@ jobs:
           
           # Commit and push the changes
           git add .
-          git commit -m "🚀 Update app1 image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment
+          git commit -m "🚀 Update $COMPONENT image to $IMAGE_TAG for ${{ env.ENVIRONMENT }} environment
 
           Auto-update from CI/CD pipeline
           - Environment: ${{ env.ENVIRONMENT }}
