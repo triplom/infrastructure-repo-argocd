@@ -21,7 +21,7 @@ spec:
       containers:
       - name: app1
         # Use GHCR image path instead of localhost:5000
-        image: ghcr.io/triplom/app1:latest
+        image: ghcr.io/triplom/app1:pipeline-test
         ports:
         - containerPort: 8080
           name: http
