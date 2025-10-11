@@ -15,13 +15,13 @@ spec:
       labels:
         app: app2
     spec:
-      imagePullSecrets:
-      - name: github-registry
       containers:
       - name: app2
-        image: ghcr.io/triplom/app2:latest
+        # Temporarily use httpd for demonstration until GHCR token is configured
+        image: httpd:2.4-alpine
         ports:
-        - containerPort: 8080
+        - containerPort: 80
+          name: http
         resources:
           limits:
             cpu: "200m"
