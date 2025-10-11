@@ -1,22 +1,18 @@
-# Applications configuration
+# Internal applications configuration (from src/ directory)
 argocd:
   app1:
     enabled: true
   app2:
     enabled: true
   externalApps:
-    infraRepo:
-      enabled: true
     phpWebApp:
       enabled: true
 
-# Target repository for applications
+# Target repository for internal applications
 targetRepo: https://github.com/triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD
 
 # External repositories configuration
 externalApps:
-  infraRepo:
-    targetRevision: HEAD
   phpWebApp:
     targetRevision: HEAD

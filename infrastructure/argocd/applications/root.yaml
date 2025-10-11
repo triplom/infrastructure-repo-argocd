@@ -11,11 +11,10 @@ spec:
   source:
     repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
     targetRevision: HEAD
-    path: infrastructure/argocd/applications
-    directory:
-      recurse: true
-      exclude: |
-        root.yaml
+    path: root-app
+    helm:
+      valueFiles:
+        - values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
