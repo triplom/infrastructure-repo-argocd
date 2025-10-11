@@ -1,0 +1,42 @@
+{{ if .Values.argocd.monitoring.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  generators:
+  - list:
+      elements:
+      - component: prometheus
+        env: dev
+        cluster: https://kubernetes.default.svc
+      - component: grafana
+        env: dev
+        cluster: https://kubernetes.default.svc
+      - component: alertmanager
+        env: dev
+        cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: '{{`{{component}}`}}-{{`{{env}}`}}'
+      namespace: argocd
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: monitoring
+      source:
+        repoURL: {{ .Values.targetRepo }}
+        targetRevision: {{ .Values.targetRevision }}
+        path: apps/{{`{{component}}`}}/overlays/{{`{{env}}`}}
+      destination:
+        server: '{{`{{cluster}}`}}'
+        namespace: monitoring
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - Replace=true
+{{ end }}
