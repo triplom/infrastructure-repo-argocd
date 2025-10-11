@@ -16,7 +16,7 @@ spec:
         app: app2
     spec:
       imagePullSecrets:
-      - name: ghcr-secret
+      - name: github-registry
       containers:
       - name: app2
         image: ghcr.io/triplom/app2:latest

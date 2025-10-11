@@ -20,6 +20,10 @@ nodes:
   - containerPort: 443
     hostPort: 8443
     protocol: TCP
+  extraMounts:
+  - hostPath: /etc/resolv.conf
+    containerPath: /etc/resolv.conf
+    readOnly: true
 - role: worker
 - role: worker
 networking:
