@@ -17,10 +17,10 @@ spec:
     spec:
       containers:
       - name: app2
-        # Temporarily use httpd for demonstration until GHCR token is configured
-        image: httpd:2.4-alpine
+        # Use GHCR image path with proper authentication
+        image: ghcr.io/triplom/app2:latest
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
         resources:
           limits:

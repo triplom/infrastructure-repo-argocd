@@ -20,8 +20,8 @@ spec:
     spec:
       containers:
       - name: app1
-        # Temporarily use nginx for demonstration until GHCR token is configured
-        image: nginx:1.21-alpine
+        # Use GHCR image path with proper authentication
+        image: ghcr.io/triplom/app1:pipeline-test
         ports:
         - containerPort: 8080
           name: http
@@ -36,13 +36,13 @@ spec:
             cpu: "100m"
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: http
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: http
           initialDelaySeconds: 5
           periodSeconds: 5
