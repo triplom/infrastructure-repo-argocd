@@ -7,7 +7,9 @@ spec:
   description: Monitoring project for Prometheus, Grafana, and related tools
   sourceRepos:
   - 'https://github.com/triplom/infrastructure-repo-argocd.git'
-  - 'https://github.com/triplom/infrastructure-repo-argocd.git'
+  - 'https://github.com/prometheus-community/helm-charts.git'
+  - 'https://prometheus-community.github.io/helm-charts'
+  - '*'
   destinations:
   - namespace: 'monitoring*'
     server: https://kubernetes.default.svc

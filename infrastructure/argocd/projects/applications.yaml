@@ -8,7 +8,9 @@ spec:
   description: Project for all applications
   sourceRepos:
   - 'https://github.com/triplom/infrastructure-repo-argocd.git'
-  - 'https://github.com/triplom/infrastructure-repo-argocd.git'
+  - 'https://github.com/argoproj/argocd-example-apps.git'
+  - 'https://github.com/triplom/*'
+  - '*'
   destinations:
   - namespace: 'app*'
     server: https://kubernetes.default.svc
