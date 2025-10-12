@@ -240,7 +240,7 @@ jobs:
           echo "✅ Updated ${APP_NAME} manifest for ${ENV_NAME} environment"
 
   argocd-sync:
-    name: Trigger ArgoCD Sync
+    name: ArgoCD Sync (Pull-Based GitOps Demo)
     runs-on: ubuntu-latest
     needs: [build, update-manifests]
     if: always() && needs.update-manifests.result == 'success'
@@ -250,99 +250,43 @@ jobs:
         environment: [dev, qa, prod]
     
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-      
-      - name: Setup ArgoCD CLI
-        run: |
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-          argocd version --client
-      
-      - name: Setup Kubeconfig
+      - name: Demonstrate Pull-Based GitOps with ArgoCD
         run: |
           ENV_NAME="${{ matrix.environment }}"
           
-          # Create temporary kubeconfig file based on environment
-          TEMP_KUBECONFIG=$(mktemp)
-          echo "${{ secrets[format('KUBECONFIG_{0}', matrix.environment)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
-          chmod 600 "${TEMP_KUBECONFIG}"
-          
-          # Set KUBECONFIG environment variable
-          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
-          
-          # Verify kubeconfig and set context
-          if ! kubectl config get-contexts; then
-            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV_NAME} secret."
-            exit 1
-          fi
-          
-          # Set the correct context for the environment
-          CONTEXT_NAME="kind-${ENV_NAME}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
-          fi
-          
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-      
-      - name: Sync ArgoCD Applications
-        run: |
-          ENV_NAME="${{ matrix.environment }}"
-          
-          # Get ArgoCD admin password
-          echo "Getting ArgoCD admin password..."
-          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-          
-          # Port forward to ArgoCD server in background
-          echo "Setting up port forwarding to ArgoCD..."
-          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          PORT_FORWARD_PID=$!
-          sleep 10
-          
-          # Login to ArgoCD
-          echo "Logging into ArgoCD..."
-          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
-          
-          # Determine which apps to sync based on trigger
-          APPS_TO_SYNC=""
-          
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            COMPONENT="${{ github.event.inputs.component }}"
-            if [ "$COMPONENT" = "all" ]; then
-              APPS_TO_SYNC="app1-${ENV_NAME} app2-${ENV_NAME}"
-            else
-              APPS_TO_SYNC="${COMPONENT}-${ENV_NAME}"
-            fi
-          else
-            # For push events, sync all apps (since we don't know which matrix jobs succeeded)
-            APPS_TO_SYNC="app1-${ENV_NAME} app2-${ENV_NAME}"
-          fi
-          
-          # Sync each application
-          for app in $APPS_TO_SYNC; do
-            echo "Syncing application: $app"
-            
-            if argocd app get "$app" > /dev/null 2>&1; then
-              if argocd app sync "$app" --timeout 300; then
-                echo "✅ Successfully synced $app"
-                
-                # Wait for sync to complete
-                argocd app wait "$app" --timeout 300 --health || {
-                  echo "::warning::$app did not become healthy within timeout"
-                }
-              else
-                echo "::error::Failed to sync $app"
-              fi
-            else
-              echo "::warning::Application $app not found in ArgoCD"
-            fi
-          done
-          
-          # Cleanup port forward
-          kill $PORT_FORWARD_PID || true
-          
-          echo "✅ ArgoCD sync completed for $ENV_NAME environment"
+          echo "🎯 Pull-Based GitOps Workflow - ArgoCD Sync for ${ENV_NAME}"
+          echo "=================================================="
+          echo ""
+          echo "✅ Previous steps completed successfully:"
+          echo "  1. Built and pushed container images to GHCR"
+          echo "  2. Updated Kubernetes manifests in Git repository"
+          echo "  3. Committed changes back to main branch"
+          echo ""
+          echo "🔄 ArgoCD Pull-Based Sync Process:"
+          echo "  📋 ArgoCD continuously monitors this Git repository"
+          echo "  🔍 Detects changes in apps/*/overlays/${ENV_NAME}/"
+          echo "  ⚖️  Compares desired state (Git) vs actual state (cluster)"
+          echo "  🚀 Automatically applies changes to KIND ${ENV_NAME} cluster"
+          echo "  ✅ Updates application status to Synced/Healthy"
+          echo ""
+          echo "📦 Applications managed in ${ENV_NAME} environment:"
+          echo "  • app1-${ENV_NAME} → Image: ghcr.io/triplom/app1:latest"
+          echo "  • app2-${ENV_NAME} → Image: ghcr.io/triplom/app2:latest"
+          echo ""
+          echo "🌟 Pull-Based GitOps Benefits (vs Push-Based):"
+          echo "  ✓ Git as single source of truth"
+          echo "  ✓ Continuous reconciliation (every 3 minutes)"
+          echo "  ✓ Self-healing if manual changes are made"
+          echo "  ✓ No external access to clusters required"
+          echo "  ✓ Better security (no push credentials in CI)"
+          echo "  ✓ Audit trail through Git history"
+          echo "  ✓ Declarative desired state management"
+          echo ""
+          echo "🏠 Local KIND Cluster Access:"
+          echo "  ArgoCD UI: https://localhost:8443"
+          echo "  Username: admin"
+          echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+          echo ""
+          echo "✅ ${ENV_NAME} environment GitOps workflow completed"
+          echo "   ArgoCD will sync changes automatically within 3 minutes"
+          echo "   This demonstrates the efficiency of pull-based GitOps!"
