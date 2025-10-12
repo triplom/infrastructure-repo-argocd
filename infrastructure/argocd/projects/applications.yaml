@@ -18,6 +18,8 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: 'demo-app*'
     server: https://kubernetes.default.svc
+  - namespace: 'php-web-app*'
+    server: https://kubernetes.default.svc
   clusterResourceWhitelist:
   - group: '*'
     kind: '*'
