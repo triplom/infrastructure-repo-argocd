@@ -127,7 +127,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.CONFIG_REPO_PAT }}
+          token: ${{ secrets.CONFIG_REPO_PAT || github.token }}
       
       - name: Check if update needed
         id: check-update
@@ -208,6 +208,9 @@ jobs:
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Configure git remote with token authentication
+          git remote set-url origin https://x-access-token:${{ secrets.CONFIG_REPO_PAT || github.token }}@github.com/${{ github.repository }}.git
           
           # Check if there are changes to commit
           if git diff --quiet; then
