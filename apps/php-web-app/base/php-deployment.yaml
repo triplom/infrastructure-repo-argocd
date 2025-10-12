@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-fpm-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-fpm
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: php-fpm
+        tier: backend
+    spec:
+      containers:
+      - name: php-fpm
+        image: ghcr.io/triplom/php-fpm:latest
+        ports:
+        - containerPort: 9000
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"

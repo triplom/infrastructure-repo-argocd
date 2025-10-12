@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+      tier: web
+  template:
+    metadata:
+      labels:
+        app: nginx
+        tier: web
+    spec:
+      containers:
+      - name: nginx
+        image: ghcr.io/triplom/nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
