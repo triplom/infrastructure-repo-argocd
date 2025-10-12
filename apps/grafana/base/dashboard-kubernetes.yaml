@@ -7,9 +7,8 @@ metadata:
 data:
   kubernetes-overview.json: |
     {
-      "dashboard": {
-        "id": null,
-        "title": "Kubernetes Cluster Overview",
+      "id": null,
+      "title": "Kubernetes Cluster Overview",
         "tags": ["kubernetes"],
         "style": "dark",
         "timezone": "browser",
@@ -89,5 +88,4 @@ data:
           "to": "now"
         },
         "refresh": "30s"
-      }
     }

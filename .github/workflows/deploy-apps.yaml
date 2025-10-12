@@ -74,7 +74,7 @@ jobs:
             echo "  5. ✅ Applications updated without external push access"
             echo ""
             echo "🏠 For local ArgoCD access:"
-            echo "  ArgoCD UI: https://localhost:8443"
+            echo "  ArgoCD UI: https://localhost:8080"
             echo "  Username: admin"
             echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
             echo ""
