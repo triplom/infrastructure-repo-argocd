@@ -1,0 +1,303 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Chapter 6: GitOps Efficiency Evaluation - Thesis Research",
+    "tags": ["thesis", "gitops", "chapter6", "research", "argocd"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "RQ1: Deployment Speed Analysis",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "deployment_duration_seconds:incremental",
+            "legendFormat": "Incremental Deployment Time",
+            "refId": "A"
+          },
+          {
+            "expr": "pipeline_duration_seconds:commit_to_deploy",
+            "legendFormat": "Full Pipeline Duration",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "showPoints": "auto"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "visible", "placement": "bottom"}
+        }
+      },
+      {
+        "id": 2,
+        "title": "RQ1: Deployment Success Rate",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "deployment_success_rate:percentage",
+            "legendFormat": "Success Rate %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 80},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "id": 3,
+        "title": "RQ2: Self-Healing Actions",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "self_healing_actions:count",
+            "legendFormat": "Self-Healing Events",
+            "refId": "A"
+          },
+          {
+            "expr": "drift_detection_duration_seconds",
+            "legendFormat": "Drift Detection Time",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "showPoints": "auto"
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "RQ2: Operational Complexity Score",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rq2_operational_complexity:score",
+            "legendFormat": "Complexity Score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "min": 0,
+            "max": 10,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 8}
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 5,
+        "title": "ArgoCD Applications Status Matrix",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "argocd_app_info",
+            "legendFormat": "{{name}} - {{sync_status}} - {{health_status}}",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          }
+        },
+        "options": {
+          "showHeader": true
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Resource Utilization by Deployment Method",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "deployment_cpu_usage:by_method",
+            "legendFormat": "{{method}} CPU Usage",
+            "refId": "A"
+          },
+          {
+            "expr": "deployment_memory_usage:by_method",
+            "legendFormat": "{{method}} Memory Usage",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percent",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "showPoints": "auto"
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "RQ1 Hypothesis Validation",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {
+            "expr": "rq1_deployment_time_improvement:percentage",
+            "legendFormat": "RQ1_H1: Time Improvement %",
+            "refId": "A"
+          },
+          {
+            "expr": "rq1_frequency_improvement:percentage",
+            "legendFormat": "RQ1_H2: Frequency Improvement %",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "green", "value": 25}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "id": 8,
+        "title": "RQ2 Hypothesis Validation",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "rq2_human_error_reduction:count",
+            "legendFormat": "RQ2_H1: Human Error Reduction",
+            "refId": "A"
+          },
+          {
+            "expr": "rq2_drift_detection_efficiency:percentage",
+            "legendFormat": "RQ2_H2: Drift Detection Efficiency %",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "unit": "short",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 10}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal"
+        }
+      }
+    ],
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(argocd_app_sync_total[5m]) > 0",
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "titleFormat": "ArgoCD Sync Event"
+        }
+      ]
+    },
+    "schemaVersion": 30
+  },
+  "overwrite": true
+}
