@@ -23,9 +23,9 @@ spec:
     spec:
       project: applications
       source:
-        repoURL: https://github.com/triplom/k8s-web-app-php.git
+        repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
         targetRevision: {{ .Values.externalApps.phpWebApp.targetRevision }}
-        path: k8s/overlays/{{`{{env}}`}}
+        path: apps/php-web-app/overlays/{{`{{env}}`}}
       destination:
         server: '{{`{{cluster}}`}}'
         namespace: php-web-app-{{`{{env}}`}}

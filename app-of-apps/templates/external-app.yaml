@@ -23,7 +23,7 @@ spec:
     spec:
       project: applications
       source:
-        repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+        repoURL: https://github.com/triplom/infrastructure-repo.git
         targetRevision: {{ .Values.externalApps.externalApp.targetRevision }}
         path: apps/external-app/overlays/{{`{{env}}`}}
       destination:
