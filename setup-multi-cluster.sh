@@ -28,7 +28,7 @@ for cluster in "${CLUSTERS[@]}"; do
         kubectl create secret docker-registry github-registry \
             --docker-server=ghcr.io \
             --docker-username=triplom \
-            --docker-password=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 \
+            --docker-password=${GITHUB_TOKEN:-ghp_YOUR_TOKEN_HERE} \
             --namespace=$ns \
             --dry-run=client -o yaml | kubectl apply -f -
     done
