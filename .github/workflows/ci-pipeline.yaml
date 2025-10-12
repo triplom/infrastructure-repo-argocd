@@ -32,6 +32,11 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME_PREFIX: ${{ github.repository_owner }}
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
   build:
     name: Build and Push Container Images
@@ -117,6 +122,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    permissions:
+      contents: write
+      pull-requests: write
     
     strategy:
       matrix:
