@@ -45,4 +45,4 @@ infrastructure/argocd/repositories/github-repo.yaml
 infrastructure/argocd/repositories/github-repo.yaml
 *.token
 *.credentials
-GITHUB-ACTIONS-SETUP-GUIDE.md
+GITHUB-ACTIONS-SETUP-GUIDE.mdargocd-linux-amd64

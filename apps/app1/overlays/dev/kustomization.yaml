@@ -15,4 +15,4 @@ patches:
 images:
 - name: app1
   newName: ghcr.io/triplom/app1
-  newTag: main
+  newTag: latest
