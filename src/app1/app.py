@@ -47,4 +47,4 @@ if __name__ == '__main__':
     logger.info("Metrics server started on port 9090")
     
     # Start the Flask application
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080)# Testing GHCR auth fix - Sun Oct 12 16:36:32 WEST 2025
