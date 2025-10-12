@@ -1,0 +1,276 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  argocd-dashboard.json: |
+    {
+        "id": null,
+        "title": "ArgoCD GitOps Dashboard - Thesis Evaluation",
+        "tags": ["argocd", "gitops", "thesis"],
+        "style": "dark",
+        "timezone": "browser",
+        "editable": true,
+        "graphTooltip": 0,
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "timepicker": {},
+        "templating": {
+          "list": []
+        },
+        "annotations": {
+          "list": []
+        },
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 1,
+        "panels": [
+          {
+            "id": 1,
+            "title": "ArgoCD Applications Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "count(argocd_app_info)",
+                "legendFormat": "Total Applications",
+                "refId": "A"
+              },
+              {
+                "expr": "count(argocd_app_info{sync_status=\"Synced\"})",
+                "legendFormat": "Synced Apps",
+                "refId": "B"
+              },
+              {
+                "expr": "count(argocd_app_info{health_status=\"Healthy\"})",
+                "legendFormat": "Healthy Apps",
+                "refId": "C"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "orientation": "auto",
+              "textMode": "auto",
+              "colorMode": "value",
+              "graphMode": "area",
+              "justifyMode": "auto"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [],
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": null},
+                    {"color": "yellow", "value": 1},
+                    {"color": "green", "value": 5}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "Application Sync Status",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "count by (sync_status) (argocd_app_info)",
+                "legendFormat": "{{sync_status}}",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "pieType": "pie",
+              "tooltip": {"mode": "single"},
+              "legend": {"displayMode": "visible", "placement": "bottom"}
+            }
+          },
+          {
+            "id": 3,
+            "title": "Application Health Status",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "count by (health_status) (argocd_app_info)",
+                "legendFormat": "{{health_status}}",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "pieType": "pie",
+              "tooltip": {"mode": "single"},
+              "legend": {"displayMode": "visible", "placement": "bottom"}
+            }
+          },
+          {
+            "id": 4,
+            "title": "Applications by Project",
+            "type": "bargraph",
+            "targets": [
+              {
+                "expr": "count by (project) (argocd_app_info)",
+                "legendFormat": "{{project}}",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "options": {
+              "orientation": "horizontal",
+              "xField": "project",
+              "colorMode": "palette-classic"
+            }
+          },
+          {
+            "id": 5,
+            "title": "Application Details Table",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "argocd_app_info",
+                "format": "table",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 12, "w": 24, "x": 0, "y": 16},
+            "options": {
+              "showHeader": true
+            },
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "align": "auto",
+                  "width": 150
+                }
+              },
+              "overrides": [
+                {
+                  "matcher": {"id": "byName", "options": "name"},
+                  "properties": [{"id": "custom.width", "value": 200}]
+                },
+                {
+                  "matcher": {"id": "byName", "options": "sync_status"},
+                  "properties": [
+                    {
+                      "id": "custom.cellOptions",
+                      "value": {
+                        "type": "color-background",
+                        "mode": "basic"
+                      }
+                    },
+                    {
+                      "id": "mappings",
+                      "value": [
+                        {"options": {"Synced": {"color": "green"}}, "type": "value"},
+                        {"options": {"OutOfSync": {"color": "red"}}, "type": "value"},
+                        {"options": {"Unknown": {"color": "yellow"}}, "type": "value"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "matcher": {"id": "byName", "options": "health_status"},
+                  "properties": [
+                    {
+                      "id": "custom.cellOptions",
+                      "value": {
+                        "type": "color-background",
+                        "mode": "basic"
+                      }
+                    },
+                    {
+                      "id": "mappings",
+                      "value": [
+                        {"options": {"Healthy": {"color": "green"}}, "type": "value"},
+                        {"options": {"Degraded": {"color": "red"}}, "type": "value"},
+                        {"options": {"Unknown": {"color": "yellow"}}, "type": "value"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "transformations": [
+              {
+                "id": "organize",
+                "options": {
+                  "excludeByName": {
+                    "Time": true,
+                    "Value": true,
+                    "__name__": true,
+                    "instance": true,
+                    "job": true
+                  },
+                  "indexByName": {
+                    "name": 0,
+                    "project": 1,
+                    "sync_status": 2,
+                    "health_status": 3,
+                    "dest_namespace": 4,
+                    "repo": 5
+                  },
+                  "renameByName": {
+                    "name": "Application",
+                    "project": "Project",
+                    "sync_status": "Sync Status",
+                    "health_status": "Health Status",
+                    "dest_namespace": "Namespace",
+                    "repo": "Repository"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "ArgoCD Server Metrics",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(argocd_server_api_request_total[5m])",
+                "legendFormat": "API Requests/sec",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+            "options": {
+              "legend": {"calcs": [], "displayMode": "visible", "placement": "bottom"}
+            }
+          },
+          {
+            "id": 7,
+            "title": "GitOps Sync Operations",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(argocd_app_sync_total[5m])",
+                "legendFormat": "Sync Operations/sec",
+                "refId": "A"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+            "options": {
+              "legend": {"calcs": [], "displayMode": "visible", "placement": "bottom"}
+            }
+          }
+        ]
+    }
