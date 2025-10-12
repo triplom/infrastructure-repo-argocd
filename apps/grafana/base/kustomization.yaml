@@ -7,3 +7,4 @@ resources:
 - datasources-config.yaml
 - dashboards-config.yaml
 - dashboard-kubernetes.yaml
+- dashboard-k8s-comprehensive.yaml

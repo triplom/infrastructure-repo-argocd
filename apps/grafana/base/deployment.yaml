@@ -38,7 +38,11 @@ spec:
         - name: grafana-dashboards-config
           mountPath: /etc/grafana/provisioning/dashboards
         - name: kubernetes-dashboard
-          mountPath: /var/lib/grafana/dashboards
+          mountPath: /var/lib/grafana/dashboards/kubernetes-overview.json
+          subPath: kubernetes-overview.json
+        - name: k8s-comprehensive-dashboard
+          mountPath: /var/lib/grafana/dashboards/k8s-comprehensive.json
+          subPath: k8s-comprehensive-dashboard.json
       volumes:
       - name: grafana-storage
         emptyDir: {}
@@ -51,3 +55,6 @@ spec:
       - name: kubernetes-dashboard
         configMap:
           name: kubernetes-overview-dashboard
+      - name: k8s-comprehensive-dashboard
+        configMap:
+          name: grafana-dashboard-k8s-comprehensive
