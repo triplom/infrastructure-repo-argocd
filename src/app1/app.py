@@ -4,8 +4,8 @@ from flask import Flask, jsonify
 from prometheus_client import start_http_server, Counter, Histogram
 import logging
 
-# Configure logging
-# Test change to trigger selective CI/CD pipeline
+# Configure logging  
+# Test change #2 to verify GHCR permissions fix
 logging_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(level=getattr(logging, logging_level),
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
