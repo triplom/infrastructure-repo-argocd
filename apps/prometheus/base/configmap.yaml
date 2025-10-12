@@ -53,3 +53,31 @@ data:
         - source_labels: [__meta_kubernetes_pod_name]
           action: replace
           target_label: kubernetes_pod_name
+
+      # ArgoCD Controller Metrics (GitOps Application metrics)
+      - job_name: 'argocd-metrics'
+        static_configs:
+          - targets: ['argocd-metrics.argocd:8082']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        
+      # ArgoCD Server Metrics (API and Web metrics)
+      - job_name: 'argocd-server-metrics'
+        static_configs:
+          - targets: ['argocd-server-metrics.argocd:8083']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        
+      # ArgoCD ApplicationSet Controller Metrics
+      - job_name: 'argocd-applicationset-metrics'
+        static_configs:
+          - targets: ['argocd-applicationset-controller.argocd:8080']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        
+      # ArgoCD Notifications Controller Metrics
+      - job_name: 'argocd-notifications-metrics'
+        static_configs:
+          - targets: ['argocd-notifications-controller-metrics.argocd:9001']
+        metrics_path: /metrics
+        scrape_interval: 30s
