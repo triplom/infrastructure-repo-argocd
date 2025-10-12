@@ -5,3 +5,7 @@ resources:
 patchesStrategicMerge:
 - nginx-patch.yaml
 - php-patch.yaml
+images:
+- name: php-web-app
+  newName: ghcr.io/triplom/php-web-app
+  newTag: main
