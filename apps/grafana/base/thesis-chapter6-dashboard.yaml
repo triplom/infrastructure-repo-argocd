@@ -1,0 +1,316 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thesis-chapter6-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  thesis-chapter6-evaluation.json: |
+    {
+      "id": null,
+      "title": "Chapter 6: GitOps Efficiency Evaluation - Thesis Research",
+      "tags": ["thesis", "chapter6", "gitops", "evaluation", "research"],
+      "style": "dark",
+      "timezone": "browser",
+      "editable": true,
+      "graphTooltip": 0,
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "RQ1: Deployment Speed Analysis (Section 6.2.1)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "deployment_duration_seconds:time_to_first",
+              "legendFormat": "Time to First Deployment",
+              "refId": "A"
+            },
+            {
+              "expr": "deployment_duration_seconds:incremental", 
+              "legendFormat": "Incremental Deployment Time",
+              "refId": "B"
+            },
+            {
+              "expr": "pipeline_duration_seconds:commit_to_deploy",
+              "legendFormat": "Pipeline Execution Time",
+              "refId": "C"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 30},
+                  {"color": "red", "value": 120}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "RQ1_H1 & RQ1_H2: Deployment Reliability Metrics",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "deployment_success_rate:percentage",
+              "legendFormat": "Success Rate %",
+              "refId": "A"
+            },
+            {
+              "expr": "rq1_deployment_time_improvement:percentage", 
+              "legendFormat": "Time Improvement %",
+              "refId": "B"
+            },
+            {
+              "expr": "rq1_reliability_improvement:percentage",
+              "legendFormat": "Reliability Improvement %",
+              "refId": "C"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": ["lastNotNull"],
+              "fields": ""
+            },
+            "textMode": "value_and_name",
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 3,
+          "title": "RQ2: Operational Efficiency - Resource Utilization (Section 6.2.2)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "deployment_cpu_usage:by_method",
+              "legendFormat": "CPU Usage - {{namespace}}",
+              "refId": "A"
+            },
+            {
+              "expr": "deployment_memory_usage:by_method / 1024 / 1024",
+              "legendFormat": "Memory Usage (MB) - {{namespace}}",
+              "refId": "B"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "axisLabel": "Resource Usage"
+              }
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Scalability Performance vs Application Count",
+          "type": "bargraph",
+          "targets": [
+            {
+              "expr": "deployment_scalability:time_by_app_count",
+              "legendFormat": "Deployment Time - {{application_count_range}} apps",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "options": {
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "id": 5,
+          "title": "RQ2_H1: Drift Detection & Self-Healing Capabilities",
+          "type": "timeseries", 
+          "targets": [
+            {
+              "expr": "drift_detection_duration_seconds",
+              "legendFormat": "Drift Detection Events",
+              "refId": "A"
+            },
+            {
+              "expr": "self_healing_actions:count",
+              "legendFormat": "Self-Healing Actions",
+              "refId": "B"
+            },
+            {
+              "expr": "consistency_gap_duration_seconds",
+              "legendFormat": "Inconsistent State Duration (s)",
+              "refId": "C"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            }
+          }
+        },
+        {
+          "id": 6,
+          "title": "RQ2_H2: Recovery & Maintenance Metrics (Section 6.2.3)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "recovery_duration_seconds:mean_time",
+              "legendFormat": "Mean Recovery Time",
+              "refId": "A"
+            },
+            {
+              "expr": "rq2_human_error_reduction:count",
+              "legendFormat": "Human Errors Prevented",
+              "refId": "B"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Chapter 6 Research Questions Summary",
+          "type": "table",
+          "targets": [
+            {
+              "expr": "rq1_deployment_time_improvement:percentage",
+              "format": "table",
+              "refId": "A"
+            },
+            {
+              "expr": "rq1_reliability_improvement:percentage", 
+              "format": "table",
+              "refId": "B"
+            },
+            {
+              "expr": "rq2_human_error_reduction:count",
+              "format": "table", 
+              "refId": "C"
+            },
+            {
+              "expr": "rq2_operational_complexity:score",
+              "format": "table",
+              "refId": "D"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "options": {
+            "showHeader": true
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "center",
+                "width": 150
+              }
+            }
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true
+                },
+                "renameByName": {
+                  "hypothesis": "Research Question",
+                  "metric_type": "Metric Type",
+                  "Value": "Result"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "ArgoCD Application Status Matrix (Thesis Validation)",
+          "type": "table",
+          "targets": [
+            {
+              "expr": "argocd_app_info",
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 32},
+          "transformations": [
+            {
+              "id": "organize", 
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "__name__": true,
+                  "instance": true,
+                  "job": true
+                },
+                "indexByName": {
+                  "name": 0,
+                  "project": 1, 
+                  "sync_status": 2,
+                  "health_status": 3,
+                  "dest_namespace": 4
+                },
+                "renameByName": {
+                  "name": "Application",
+                  "project": "Project", 
+                  "sync_status": "Sync Status",
+                  "health_status": "Health Status",
+                  "dest_namespace": "Target Namespace"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Sync Status"},
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {"options": {"Synced": {"color": "green"}}, "type": "value"},
+                      {"options": {"OutOfSync": {"color": "red"}}, "type": "value"},
+                      {"options": {"Unknown": {"color": "yellow"}}, "type": "value"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      }
+    }

@@ -8,3 +8,4 @@ resources:
 - configmap.yaml
 - rbac.yaml
 - rules-configmap.yaml
+- thesis-chapter6-metrics.yaml

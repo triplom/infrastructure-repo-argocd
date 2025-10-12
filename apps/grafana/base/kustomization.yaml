@@ -9,3 +9,4 @@ resources:
 - dashboard-kubernetes.yaml
 - dashboard-k8s-comprehensive.yaml
 - argocd-dashboard-configmap.yaml
+- thesis-chapter6-dashboard.yaml

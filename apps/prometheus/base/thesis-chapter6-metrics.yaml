@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thesis-chapter6-metrics-rules
+  labels:
+    app: prometheus
+data:
+  thesis-chapter6-rules.yaml: |
+    groups:
+    
+    # Chapter 6.2.1 - DEPLOYMENT SPEED METRICS
+    # Based on thesis Section 6.2.1 for RQ1 evaluation
+    - name: deployment-speed-metrics
+      rules:
+      
+      # Time to First Deployment
+      # Measure time required to deploy a new application from scratch
+      - record: deployment_duration_seconds:time_to_first
+        expr: |
+          (
+            argocd_app_operation_duration_seconds{operation="deploy", phase="Succeeded"} 
+            and on(name) argocd_app_info{operation=""}
+          )
+        labels:
+          deployment_type: "initial"
+          
+      # Incremental Deployment Time  
+      # Time required to deploy a small change
+      - record: deployment_duration_seconds:incremental
+        expr: |
+          (
+            argocd_app_sync_duration_seconds{phase="Succeeded"}
+            and on(name) (argocd_app_info{sync_status="Synced"} - argocd_app_info{sync_status="Synced"} offset 5m)
+          )
+        labels:
+          deployment_type: "incremental"
+          
+      # Pipeline Execution Time
+      # Total time from commit to successful deployment
+      - record: pipeline_duration_seconds:commit_to_deploy
+        expr: |
+          argocd_app_operation_duration_seconds{operation="sync", phase="Succeeded"}
+        labels:
+          deployment_method: "pull-based"
+    
+    # Chapter 6.2.2 - OPERATIONAL EFFICIENCY METRICS  
+    # For measuring operational complexity and scalability
+    - name: operational-efficiency-metrics
+      rules:
+      
+      # Resource Utilization - CPU per deployment strategy
+      - record: deployment_cpu_usage:by_method
+        expr: |
+          sum(rate(container_cpu_usage_seconds_total{namespace=~"app[12]-(dev|qa|prod)"}[5m])) by (namespace) 
+          * on(namespace) group_left(deployment_method) 
+          (
+            label_replace(
+              argocd_app_info{dest_namespace=~"app[12]-(dev|qa|prod)"}, 
+              "namespace", "$1", "dest_namespace", "(.*)"
+            ) * 0 + 1
+          )
+        labels:
+          deployment_method: "pull-based"
+          
+      # Memory consumption comparison
+      - record: deployment_memory_usage:by_method  
+        expr: |
+          sum(container_memory_usage_bytes{namespace=~"app[12]-(dev|qa|prod)"}) by (namespace)
+          * on(namespace) group_left(deployment_method)
+          (
+            label_replace(
+              argocd_app_info{dest_namespace=~"app[12]-(dev|qa|prod)"}, 
+              "namespace", "$1", "dest_namespace", "(.*)"
+            ) * 0 + 1
+          )
+        labels:
+          deployment_method: "pull-based"
+          
+      # Scalability Performance - deployment time vs application count
+      - record: deployment_scalability:time_by_app_count
+        expr: |
+          avg(argocd_app_sync_duration_seconds{phase="Succeeded"}) by (project)
+          * on() group_left(application_count)
+          (
+            count(argocd_app_info) by () > 0 and 
+            count(argocd_app_info) by () <= 5
+          ) + ignoring(application_count) (
+            count(argocd_app_info) by () * 0 + 3
+          )
+        labels:
+          application_count_range: "1-5"
+          
+      # Drift Detection Time
+      # Time to detect and reconcile configuration drift
+      - record: drift_detection_duration_seconds
+        expr: |
+          increase(argocd_app_reconcile_count{sync_status="OutOfSync"}[5m]) > 0
+        labels:
+          drift_type: "configuration"
+          
+    # Chapter 6.2.3 & 6.3.1 - MAINTENANCE & RECOVERY METRICS
+    # For measuring self-healing and operational resilience
+    - name: maintenance-recovery-metrics
+      rules:
+      
+      # Recovery Time - Time to recover from failure scenarios
+      - record: recovery_duration_seconds:mean_time
+        expr: |
+          avg(argocd_app_sync_duration_seconds{phase="Failed"} offset 5m) by (name)
+        labels:
+          failure_type: "sync_failure"
+          deployment_method: "pull-based"
+          
+      # Self-healing Capabilities
+      - record: self_healing_actions:count
+        expr: |
+          increase(argocd_app_sync_total{sync_status="Synced", triggered_by!="user"}[1h])
+        labels:
+          action_type: "automated_recovery"
+          
+      # Deployment Success Rate
+      - record: deployment_success_rate:percentage
+        expr: |
+          (
+            sum(increase(argocd_app_sync_total{phase="Succeeded"}[24h])) by (project) /
+            sum(increase(argocd_app_sync_total[24h])) by (project)
+          ) * 100
+        labels:
+          deployment_method: "pull-based"
+          
+      # Consistency Guarantee - Time spent in inconsistent states
+      - record: consistency_gap_duration_seconds
+        expr: |
+          count by (name) (
+            argocd_app_info{sync_status!="Synced"}
+          ) * 60
+        labels:
+          state_type: "inconsistent"
+          
+    # THESIS RQ1 & RQ2 EVALUATION AGGREGATES
+    # Metrics specifically for Research Questions validation
+    - name: thesis-research-questions
+      rules:
+      
+      # RQ1_H1: ArgoCD deployment time improvements
+      - record: rq1_deployment_time_improvement:percentage
+        expr: |
+          (
+            (avg(deployment_duration_seconds:incremental) - avg(deployment_duration_seconds:incremental offset 1d)) /
+            avg(deployment_duration_seconds:incremental offset 1d)
+          ) * 100
+        labels:
+          hypothesis: "RQ1_H1"
+          metric_type: "deployment_speed"
+          
+      # RQ1_H2: Deployment reliability improvements  
+      - record: rq1_reliability_improvement:percentage
+        expr: |
+          deployment_success_rate:percentage - 
+          (deployment_success_rate:percentage offset 1d)
+        labels:
+          hypothesis: "RQ1_H2" 
+          metric_type: "reliability"
+          
+      # RQ2_H1: Human error reduction through drift detection
+      - record: rq2_human_error_reduction:count
+        expr: |
+          sum(self_healing_actions:count)
+        labels:
+          hypothesis: "RQ2_H1"
+          metric_type: "error_reduction"
+          
+      # RQ2_H2: Operational complexity reduction
+      - record: rq2_operational_complexity:score
+        expr: |
+          (
+            (avg(deployment_cpu_usage:by_method) * 0.3) +
+            (avg(deployment_memory_usage:by_method) / 1024 / 1024 * 0.3) +
+            (avg(deployment_scalability:time_by_app_count) * 0.4)
+          )
+        labels:
+          hypothesis: "RQ2_H2"
+          metric_type: "operational_complexity"
