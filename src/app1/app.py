@@ -5,7 +5,7 @@ from prometheus_client import start_http_server, Counter, Histogram
 import logging
 
 # Configure logging  
-# Test change #2 to verify GHCR permissions fix
+# Thesis Chapter 6 Evaluation: End-to-End GitOps Pipeline Test
 logging_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(level=getattr(logging, logging_level),
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -39,7 +39,11 @@ def index():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({
+        'status': 'ok',
+        'version': 'thesis-evaluation-v1.0',
+        'deployment_test': 'Chapter 6 GitOps End-to-End Pipeline'
+    })
 
 if __name__ == '__main__':
     # Start up the server to expose metrics
