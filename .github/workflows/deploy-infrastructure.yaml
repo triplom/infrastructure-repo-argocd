@@ -5,7 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'infrastructure/**'
+      - 'infrastructure/argocd/**'
+      - 'infrastructure/github-registry/**'
+      - 'infrastructure/cert-manager/**'
+      - 'infrastructure/ingress-nginx/**'
       - 'app-of-apps-infra/**'
       - '.github/workflows/deploy-infrastructure.yaml'
   workflow_dispatch:

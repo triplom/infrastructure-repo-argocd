@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'apps/**'
+      - 'src/**'
       - '.github/workflows/deploy-apps.yaml'
   workflow_dispatch:
     inputs:

@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - 'bootstrap.sh'
+      - 'setup-multi-cluster.sh'
       - 'root-app/**'
       - 'app-of-apps/**'
       - 'app-of-apps-infra/**'
       - 'app-of-apps-monitoring/**'
+      - 'infrastructure/argocd/**'
       - '.github/workflows/deploy-argocd.yaml'
   workflow_dispatch:
     inputs:
