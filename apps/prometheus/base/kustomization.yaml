@@ -4,5 +4,7 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
+- nodeport-service.yaml
 - configmap.yaml
+- rbac.yaml
 - rules-configmap.yaml
