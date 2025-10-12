@@ -9,26 +9,9 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: https://kubernetes.github.io/ingress-nginx
-    targetRevision: 4.11.2
-    chart: ingress-nginx
-    helm:
-      values: |
-        controller:
-          service:
-            type: NodePort
-          nodeSelector:
-            ingress-ready: 'true'
-          tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Equal
-            effect: NoSchedule
-          - key: node-role.kubernetes.io/master
-            operator: Equal
-            effect: NoSchedule
-          config:
-            use-forwarded-headers: "true"
-            compute-full-forwarded-for: "true"
+    repoURL: {{ .Values.targetRepo }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: infrastructure/ingress-nginx
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
