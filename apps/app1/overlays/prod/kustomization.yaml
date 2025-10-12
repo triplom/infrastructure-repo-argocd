@@ -12,6 +12,11 @@ patches:
     kind: Deployment
     name: app1
 
+images:
+- name: ghcr.io/triplom/app1:pipeline-test
+  newName: ghcr.io/triplom/app1
+  newTag: latest
+
 configMapGenerator:
 - name: app1-config
   behavior: merge

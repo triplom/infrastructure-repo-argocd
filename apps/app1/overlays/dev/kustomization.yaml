@@ -13,6 +13,6 @@ patches:
     kind: Deployment
     name: app1
 images:
-- name: app1
+- name: ghcr.io/triplom/app1:pipeline-test
   newName: ghcr.io/triplom/app1
   newTag: latest
