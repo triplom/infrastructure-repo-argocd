@@ -4,3 +4,6 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
+- datasources-config.yaml
+- dashboards-config.yaml
+- dashboard-kubernetes.yaml
