@@ -6,5 +6,5 @@ argocd:
     enabled: true
   
 # Target repository for infrastructure components
-targetRepo: https://github.com/triplom/infrastructure-repo-argocd.git
+targetRepo: git@github.com:triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD
