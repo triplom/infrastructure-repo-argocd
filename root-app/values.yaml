@@ -10,3 +10,4 @@ apps:
 # Repository configuration
 repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD
+
