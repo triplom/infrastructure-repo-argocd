@@ -1,0 +1,274 @@
+name: Deploy ArgoCD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'bootstrap.sh'
+      - 'root-app/**'
+      - 'app-of-apps/**'
+      - 'app-of-apps-infra/**'
+      - 'app-of-apps-monitoring/**'
+      - '.github/workflows/deploy-argocd.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'bootstrap'
+        type: choice
+        options:
+          - bootstrap
+          - sync-all
+          - validate
+
+jobs:
+  deploy-argocd:
+    name: Deploy ArgoCD
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      ENV: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.3'
+      
+      - name: Setup ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          argocd version --client
+      
+      - name: Setup Kubeconfig
+        run: |
+          # Create temporary kubeconfig file based on environment
+          TEMP_KUBECONFIG=$(mktemp)
+          echo "${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
+          chmod 600 "${TEMP_KUBECONFIG}"
+          
+          # Set KUBECONFIG environment variable
+          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
+          
+          # Verify kubeconfig and set context
+          if ! kubectl config get-contexts; then
+            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
+            exit 1
+          fi
+          
+          # Set the correct context for the environment
+          CONTEXT_NAME="kind-${ENV}-cluster"
+          if ! kubectl config use-context "$CONTEXT_NAME"; then
+            echo "::error::Failed to set context to $CONTEXT_NAME"
+            exit 1
+          fi
+          
+          echo "Using Kubernetes context: $(kubectl config current-context)"
+          
+          # Test connectivity
+          echo "Testing cluster connectivity..."
+          if ! kubectl cluster-info --request-timeout=30s; then
+            echo "::warning::Cannot connect to cluster directly, will use --validate=false"
+          fi
+
+      - name: Setup SSH Key for Private Repository
+        run: |
+          # Create SSH key for accessing private repository
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          
+          # Test SSH connection
+          ssh -T git@github.com || echo "SSH key configured (exit code 1 is normal for test)"
+
+      - name: Install ArgoCD
+        if: ${{ github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
+        run: |
+          echo "Installing ArgoCD on ${ENV} cluster..."
+          
+          # Create argocd namespace
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply --validate=false -f -
+          
+          # Install ArgoCD using the same version as local setup
+          kubectl apply --validate=false -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          # Wait for ArgoCD to be ready
+          echo "Waiting for ArgoCD components to be ready..."
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-application-controller -n argocd
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-dex-server -n argocd
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-notifications-controller -n argocd
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-redis -n argocd
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-repo-server -n argocd
+          
+          echo "✅ ArgoCD installation completed"
+
+      - name: Configure SSH Repository Secret
+        if: ${{ github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
+        run: |
+          echo "Configuring SSH repository secret..."
+          
+          # Create repository secret for SSH access
+          kubectl apply --validate=false -f - <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: infrastructure-repo-ssh
+            namespace: argocd
+            labels:
+              argocd.argoproj.io/secret-type: repository
+          type: Opaque
+          stringData:
+            type: git
+            url: git@github.com:triplom/infrastructure-repo-argocd.git
+            sshPrivateKey: |
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF
+          
+          echo "✅ SSH repository secret configured"
+
+      - name: Bootstrap ArgoCD Applications
+        if: ${{ github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
+        run: |
+          echo "Bootstrapping ArgoCD applications..."
+          
+          # Apply root application that will create all app-of-apps
+          kubectl apply --validate=false -f - <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: root
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+          spec:
+            project: default
+            source:
+              repoURL: git@github.com:triplom/infrastructure-repo-argocd.git
+              targetRevision: HEAD
+              path: root-app
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: argocd
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+          EOF
+          
+          echo "Waiting for root application to sync..."
+          sleep 30
+          
+          # Check if root app is created and synced
+          kubectl get applications -n argocd root -o yaml || echo "Root app not yet created"
+          
+          echo "✅ ArgoCD bootstrap completed"
+
+      - name: Sync All Applications
+        if: ${{ github.event.inputs.action == 'sync-all' }}
+        run: |
+          echo "Syncing all ArgoCD applications..."
+          
+          # Get ArgoCD admin password
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          
+          # Port forward to ArgoCD server in background
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          PORT_FORWARD_PID=$!
+          sleep 10
+          
+          # Login to ArgoCD
+          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
+          
+          # Sync all applications
+          echo "Getting list of applications..."
+          APPS=$(argocd app list -o name | grep -v "NAME" || echo "")
+          
+          if [ -n "$APPS" ]; then
+            for app in $APPS; do
+              echo "Syncing application: $app"
+              argocd app sync "$app" --timeout 300 || echo "Failed to sync $app, continuing..."
+            done
+          else
+            echo "No applications found to sync"
+          fi
+          
+          # Cleanup
+          kill $PORT_FORWARD_PID || true
+          
+          echo "✅ Application sync completed"
+
+      - name: Validate ArgoCD Setup
+        if: ${{ github.event.inputs.action == 'validate' || github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
+        run: |
+          echo "Validating ArgoCD setup..."
+          
+          # Check ArgoCD components
+          echo "Checking ArgoCD components:"
+          kubectl get pods -n argocd -l app.kubernetes.io/part-of=argocd
+          
+          # Check applications
+          echo "Checking ArgoCD applications:"
+          kubectl get applications -n argocd -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status || echo "No applications found yet"
+          
+          # Check if all expected app-of-apps are created
+          EXPECTED_APPS="root app-of-apps app-of-apps-infra app-of-apps-monitoring"
+          for app in $EXPECTED_APPS; do
+            if kubectl get application "$app" -n argocd > /dev/null 2>&1; then
+              echo "✅ Application $app exists"
+            else
+              echo "❌ Application $app missing"
+            fi
+          done
+          
+          echo "✅ Validation completed"
+
+      - name: Get Access Information
+        if: always()
+        run: |
+          echo "===========================================" 
+          echo "ArgoCD Access Information for ${ENV}"
+          echo "==========================================="
+          
+          # Get admin password
+          if kubectl get secret argocd-initial-admin-secret -n argocd > /dev/null 2>&1; then
+            ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+            echo "ArgoCD Admin Password: ${ARGOCD_PASSWORD}"
+          else
+            echo "ArgoCD admin secret not found"
+          fi
+          
+          echo ""
+          echo "To access ArgoCD UI locally:"
+          echo "kubectl port-forward svc/argocd-server -n argocd 8080:443"
+          echo "Then open: https://localhost:8080"
+          echo "Username: admin"
+          echo "Password: [see above]"
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          # Remove SSH key
+          rm -f ~/.ssh/id_rsa
+          # kubeconfig cleanup is automatic with temp files

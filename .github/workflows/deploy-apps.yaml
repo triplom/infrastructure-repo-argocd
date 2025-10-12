@@ -1,4 +1,5 @@
 name: Deploy Applications
+
 on:
   push:
     branches:
@@ -42,114 +43,139 @@ jobs:
         with:
           kustomize-version: "4.5.7"
       
+      - name: Setup ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          argocd version --client
+
       - name: Setup Kubeconfig
         run: |
-          # Create temporary kubeconfig file
+          # Create temporary kubeconfig file based on environment
           TEMP_KUBECONFIG=$(mktemp)
           echo "${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
           chmod 600 "${TEMP_KUBECONFIG}"
           
-          # Set KUBECONFIG environment variable to the temporary file
+          # Set KUBECONFIG environment variable
           echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
           
-          # Verify kubeconfig
+          # Verify kubeconfig and set context
           if ! kubectl config get-contexts; then
             echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
             exit 1
           fi
           
-          # Show which context we're using
-          CURRENT_CONTEXT=$(kubectl config current-context)
-          echo "Using Kubernetes context: $CURRENT_CONTEXT"
+          # Set the correct context for the environment
+          CONTEXT_NAME="kind-${ENV}-cluster"
+          if ! kubectl config use-context "$CONTEXT_NAME"; then
+            echo "::error::Failed to set context to $CONTEXT_NAME"
+            exit 1
+          fi
           
-          # Test API server connectivity
-          echo "Testing API server connectivity..."
-          if ! kubectl cluster-info; then
-            echo "::warning::Cannot connect to Kubernetes API server directly. All kubectl commands will use --validate=false."
+          echo "Using Kubernetes context: $(kubectl config current-context)"
+          
+          # Test connectivity
+          echo "Testing cluster connectivity..."
+          if ! kubectl cluster-info --request-timeout=30s; then
+            echo "::warning::Cannot connect to cluster directly, will use --validate=false"
           fi
 
-      - name: Deploy Applications
+      - name: Sync Applications via ArgoCD
         run: |
           APP="${{ github.event.inputs.application }}"
           FAILED_APPS=""
           
-          # Function to deploy a single app
-          deploy_app() {
+          # Get ArgoCD admin password
+          echo "Getting ArgoCD admin password..."
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          
+          # Port forward to ArgoCD server in background
+          echo "Setting up port forwarding to ArgoCD..."
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          PORT_FORWARD_PID=$!
+          sleep 10
+          
+          # Login to ArgoCD
+          echo "Logging into ArgoCD..."
+          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
+          
+          # Function to sync a single app via ArgoCD
+          sync_app() {
             local app=$1
             local env=$2
+            local app_name="${app}-${env}"
             
             echo "============================================="
-            echo "Deploying $app to $env environment"
+            echo "Syncing $app_name via ArgoCD"
             echo "============================================="
             
-            # Check if overlay exists
-            if [ ! -d "apps/$app/overlays/$env" ]; then
-              echo "::error::Overlay not found: apps/$app/overlays/$env"
-              return 1
-            fi
-            
-            # Create namespace if it doesn't exist
-            echo "Creating namespace $app-$env if needed..."
-            kubectl create namespace $app-$env --dry-run=client -o yaml | kubectl apply --validate=false -f -
-            
-            # Apply Kustomize overlay
-            echo "Applying Kustomize overlay..."
-            if ! kubectl apply --validate=false -k apps/$app/overlays/$env; then
-              echo "::error::Failed to deploy $app to $env"
-              return 1
-            fi
-            
-            # Find all deployments in the namespace to check status
-            echo "Checking deployments in namespace $app-$env..."
-            DEPLOYMENTS=$(kubectl get deployments -n $app-$env -o name 2>/dev/null || echo "")
-            
-            if [ -z "$DEPLOYMENTS" ]; then
-              echo "::warning::No deployments found for $app in namespace $app-$env"
-              # Show other resources that might have been created
-              echo "Resources created:"
-              kubectl get all -n $app-$env
-              return 0
-            fi
-            
-            # Wait for each deployment to roll out
-            for DEPLOYMENT in $DEPLOYMENTS; do
-              echo "Waiting for rollout of $DEPLOYMENT..."
-              if ! kubectl rollout status $DEPLOYMENT -n $app-$env --timeout=300s; then
-                echo "::error::Rollout for $DEPLOYMENT failed or timed out"
-                kubectl get pods -n $app-$env -l app=$app
+            # Check if ArgoCD application exists
+            if ! argocd app get "$app_name" > /dev/null 2>&1; then
+              echo "::warning::ArgoCD application $app_name not found. This may be normal if it's managed by ApplicationSet."
+              
+              # Look for ApplicationSet managed apps
+              if kubectl get applications -n argocd -l "app=$app" | grep -q "$app_name"; then
+                echo "Found $app_name managed by ApplicationSet"
+              else
+                echo "::error::Application $app_name not found in ArgoCD"
                 return 1
               fi
-            done
+            fi
             
-            echo "✅ $app successfully deployed to $env"
+            # Sync the application
+            echo "Syncing application $app_name..."
+            if argocd app sync "$app_name" --timeout 300; then
+              echo "✅ Successfully synced $app_name"
+              
+              # Wait for sync to complete and check health
+              echo "Waiting for $app_name to become healthy..."
+              argocd app wait "$app_name" --timeout 300 --health || {
+                echo "::warning::$app_name did not become healthy within timeout, but sync completed"
+              }
+            else
+              echo "::error::Failed to sync $app_name"
+              return 1
+            fi
+            
             return 0
           }
           
           # Deploy either specific app or all apps
           if [ -n "$APP" ]; then
-            # Deploy specific app
-            if ! deploy_app "$APP" "${ENV}"; then
-              echo "::error::Deployment of $APP failed"
+            # Sync specific app
+            if ! sync_app "$APP" "${ENV}"; then
+              echo "::error::Sync of $APP failed"
+              kill $PORT_FORWARD_PID || true
               exit 1
             fi
           else
-            # Deploy all apps
+            # Sync all business applications (app1, app2, etc.)
             for APP_DIR in apps/*/; do
               APP=$(basename $APP_DIR)
-              if ! deploy_app "$APP" "${ENV}"; then
+              # Skip infrastructure apps (they should be in infrastructure/ folder)
+              if [[ "$APP" == "prometheus" || "$APP" == "grafana" || "$APP" == "alertmanager" ]]; then
+                echo "Skipping infrastructure app: $APP (use deploy-monitoring pipeline)"
+                continue
+              fi
+              
+              if ! sync_app "$APP" "${ENV}"; then
                 FAILED_APPS="$FAILED_APPS $APP"
-                echo "::warning::Failed to deploy $APP, continuing with others"
+                echo "::warning::Failed to sync $APP, continuing with others"
               fi
             done
             
             # Report any failures
             if [ -n "$FAILED_APPS" ]; then
-              echo "::error::The following applications failed to deploy:$FAILED_APPS"
+              echo "::error::The following applications failed to sync:$FAILED_APPS"
+              kill $PORT_FORWARD_PID || true
               exit 1
             else
-              echo "✅ All applications successfully deployed to ${ENV}"
+              echo "✅ All applications successfully synced to ${ENV}"
             fi
           fi
+          
+          # Cleanup port forward
+          kill $PORT_FORWARD_PID || true
       
       - name: Cleanup
         if: always()

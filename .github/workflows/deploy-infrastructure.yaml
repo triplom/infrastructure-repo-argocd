@@ -1,10 +1,12 @@
 name: Deploy Infrastructure
+
 on:
   push:
     branches:
       - main
     paths:
       - 'infrastructure/**'
+      - 'app-of-apps-infra/**'
       - '.github/workflows/deploy-infrastructure.yaml'
   workflow_dispatch:
     inputs:
@@ -26,12 +28,15 @@ on:
           - all
           - cert-manager
           - ingress-nginx
+          - github-registry
 
 jobs:
   deploy:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      ENV: ${{ github.event.inputs.environment || 'dev' }}
     
     steps:
       - name: Checkout Repository
@@ -40,90 +45,132 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
       
-      - name: Setup Kustomize
-        uses: imranismail/setup-kustomize@v2
-        with:
-          kustomize-version: "4.5.7"
+      - name: Setup ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          argocd version --client
       
       - name: Setup Helm
         uses: azure/setup-helm@v3
         with:
-          version: 'v3.13.3' # Updated to latest stable version
+          version: 'v3.13.3'
       
       - name: Setup Kubeconfig
         run: |
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
-          echo "KUBECONFIG=./kubeconfig" >> $GITHUB_ENV
-          # Check if KUBECONFIG is valid
-          if ! kubectl config get-contexts > /dev/null 2>&1; then
-            echo "::error::Invalid KUBECONFIG file"
+          # Create temporary kubeconfig file based on environment
+          TEMP_KUBECONFIG=$(mktemp)
+          echo "${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
+          chmod 600 "${TEMP_KUBECONFIG}"
+          
+          # Set KUBECONFIG environment variable
+          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
+          
+          # Verify kubeconfig and set context
+          if ! kubectl config get-contexts; then
+            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
             exit 1
           fi
+          
+          # Set the correct context for the environment
+          CONTEXT_NAME="kind-${ENV}-cluster"
+          if ! kubectl config use-context "$CONTEXT_NAME"; then
+            echo "::error::Failed to set context to $CONTEXT_NAME"
+            exit 1
+          fi
+          
           echo "Using Kubernetes context: $(kubectl config current-context)"
       
-      - name: Deploy Cert Manager
-        if: ${{ github.event.inputs.component == 'cert-manager' || github.event.inputs.component == 'all' }}
+      - name: Sync Infrastructure Components via ArgoCD
         run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
-          echo "Deploying Cert Manager to $ENV environment"
+          COMPONENT="${{ github.event.inputs.component || 'all' }}"
           
-          # Check if script exists
-          if [ ! -f "infrastructure/cert-manager/base/deploy.sh" ]; then
-            echo "::error::Cert Manager deployment script not found"
-            exit 1
-          fi
+          # Get ArgoCD admin password
+          echo "Getting ArgoCD admin password..."
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
           
-          chmod +x infrastructure/cert-manager/base/deploy.sh
+          # Port forward to ArgoCD server in background
+          echo "Setting up port forwarding to ArgoCD..."
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          PORT_FORWARD_PID=$!
+          sleep 10
           
-          # Set KUBECTL_FLAGS to disable validation in CI environment
-          export KUBECTL_FLAGS="--validate=false"
+          # Login to ArgoCD
+          echo "Logging into ArgoCD..."
+          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
           
-          # Execute with timeout and capture exit code
-          timeout 300s ./infrastructure/cert-manager/base/deploy.sh "$ENV" || {
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 124 ]; then
-              echo "::error::Cert Manager deployment timed out"
-            else
-              echo "::error::Cert Manager deployment failed with exit code $EXIT_CODE"
+          # Function to sync infrastructure component
+          sync_infrastructure() {
+            local component=$1
+            
+            echo "============================================="
+            echo "Syncing infrastructure component: $component"
+            echo "============================================="
+            
+            # Check if ArgoCD application exists
+            if ! argocd app get "$component" > /dev/null 2>&1; then
+              echo "::error::ArgoCD application $component not found"
+              return 1
             fi
-            exit $EXIT_CODE
+            
+            # Sync the application
+            echo "Syncing infrastructure application $component..."
+            if argocd app sync "$component" --timeout 300; then
+              echo "✅ Successfully synced $component"
+              
+              # Wait for sync to complete and check health
+              echo "Waiting for $component to become healthy..."
+              argocd app wait "$component" --timeout 300 --health || {
+                echo "::warning::$component did not become healthy within timeout, but sync completed"
+              }
+            else
+              echo "::error::Failed to sync $component"
+              return 1
+            fi
+            
+            return 0
           }
           
-          # Verify deployment
-          echo "Verifying Cert Manager deployment..."
-          kubectl get deployment,pod -n cert-manager --selector=app.kubernetes.io/instance=cert-manager
-      
-      - name: Deploy Ingress Nginx
-        if: ${{ github.event.inputs.component == 'ingress-nginx' || github.event.inputs.component == 'all' }}
-        run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
-          echo "Deploying Ingress Nginx to $ENV environment"
+          # Sync based on component selection
+          FAILED_COMPONENTS=""
           
-          # Check if script exists
-          if [ ! -f "infrastructure/ingress-nginx/base/deploy.sh" ]; then
-            echo "::error::Ingress Nginx deployment script not found"
-            exit 1
+          if [ "$COMPONENT" = "all" ]; then
+            # Sync all infrastructure components
+            INFRA_COMPONENTS="cert-manager ingress-nginx github-registry"
+            
+            for comp in $INFRA_COMPONENTS; do
+              if ! sync_infrastructure "$comp"; then
+                FAILED_COMPONENTS="$FAILED_COMPONENTS $comp"
+                echo "::warning::Failed to sync $comp, continuing with others"
+              fi
+            done
+            
+            # Also sync the app-of-apps-infra parent
+            if ! sync_infrastructure "app-of-apps-infra"; then
+              FAILED_COMPONENTS="$FAILED_COMPONENTS app-of-apps-infra"
+              echo "::warning::Failed to sync app-of-apps-infra"
+            fi
+            
+          else
+            # Sync specific component
+            if ! sync_infrastructure "$COMPONENT"; then
+              echo "::error::Sync of $COMPONENT failed"
+              kill $PORT_FORWARD_PID || true
+              exit 1
+            fi
           fi
           
-          chmod +x infrastructure/ingress-nginx/base/deploy.sh
+          # Report any failures
+          if [ -n "$FAILED_COMPONENTS" ]; then
+            echo "::error::The following infrastructure components failed to sync:$FAILED_COMPONENTS"
+            kill $PORT_FORWARD_PID || true
+            exit 1
+          else
+            echo "✅ All infrastructure components successfully synced"
+          fi
           
-          # Set KUBECTL_FLAGS to disable validation in CI environment
-          export KUBECTL_FLAGS="--validate=false"
-          
-          # Execute with timeout and capture exit code
-          timeout 300s ./infrastructure/ingress-nginx/base/deploy.sh "$ENV" || {
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 124 ]; then
-              echo "::error::Ingress Nginx deployment timed out"
-            else
-              echo "::error::Ingress Nginx deployment failed with exit code $EXIT_CODE"
-            fi
-            exit $EXIT_CODE
-          }
-          
-          # Verify deployment
-          echo "Verifying Ingress Nginx deployment..."
-          kubectl get deployment,pod -n ingress-nginx --selector=app.kubernetes.io/instance=ingress-nginx
+          # Cleanup port forward
+          kill $PORT_FORWARD_PID || true
       
       - name: Cleanup
         if: always()
