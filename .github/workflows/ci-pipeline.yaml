@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Pull-Based GitOps CI Pipeline
 
 on:
   push:
