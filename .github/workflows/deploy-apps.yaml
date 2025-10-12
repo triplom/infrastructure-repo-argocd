@@ -1,13 +1,15 @@
-name: Deploy Applications
+name: Deploy Applications (Pull-Based GitOps - ArgoCD Only)
 
+# This workflow is disabled for pull-based GitOps demonstration
+# ArgoCD handles all application deployments automatically
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/**'
-      - 'src/**'
-      - '.github/workflows/deploy-apps.yaml'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'apps/**'
+  #     - 'src/**'
+  #     - '.github/workflows/deploy-apps.yaml'
   workflow_dispatch:
     inputs:
       environment:
@@ -52,9 +54,18 @@ jobs:
 
       - name: Setup Kubeconfig
         run: |
+          # Check if kubeconfig secret exists
+          KUBECONFIG_SECRET="${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}"
+          if [ -z "$KUBECONFIG_SECRET" ]; then
+            echo "::warning::KUBECONFIG_${ENV} secret not found. This workflow requires local KIND clusters."
+            echo "::warning::For pull-based GitOps demo, ArgoCD should be running locally on KIND clusters."
+            echo "Skipping deployment as this is a pull-based GitOps demonstration."
+            exit 0
+          fi
+          
           # Create temporary kubeconfig file based on environment
           TEMP_KUBECONFIG=$(mktemp)
-          echo "${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}" | base64 -d > "${TEMP_KUBECONFIG}"
+          echo "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
           chmod 600 "${TEMP_KUBECONFIG}"
           
           # Set KUBECONFIG environment variable
