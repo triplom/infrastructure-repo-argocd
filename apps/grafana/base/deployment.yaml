@@ -43,6 +43,9 @@ spec:
         - name: k8s-comprehensive-dashboard
           mountPath: /var/lib/grafana/dashboards/k8s-comprehensive.json
           subPath: k8s-comprehensive-dashboard.json
+        - name: thesis-chapter6-dashboard
+          mountPath: /var/lib/grafana/dashboards/thesis-chapter6.json
+          subPath: thesis-chapter6-dashboard.json
       volumes:
       - name: grafana-storage
         emptyDir: {}
@@ -58,3 +61,6 @@ spec:
       - name: k8s-comprehensive-dashboard
         configMap:
           name: grafana-dashboard-k8s-comprehensive
+      - name: thesis-chapter6-dashboard
+        configMap:
+          name: thesis-chapter6-dashboard
