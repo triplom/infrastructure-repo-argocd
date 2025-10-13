@@ -45,4 +45,4 @@ spec:
             path: /health
             port: http
           initialDelaySeconds: 5
-          periodSeconds: 5
+          periodSeconds: 5# Chapter 6 Thesis: Pull-based test - Mon Oct 13 11:05:10 UTC 2025
