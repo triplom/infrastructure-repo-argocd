@@ -1,8 +1,8 @@
-{{ if .Values.argocd.externalApps.externalApp.enabled }}
+{{ if .Values.argocd.externalApps.externalApp2.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: external-app1
+  name: external-app2
   namespace: argocd
 spec:
   generators:
@@ -16,7 +16,7 @@ spec:
         cluster: https://kubernetes.default.svc
   template:
     metadata:
-      name: 'external-app1-{{`{{env}}`}}'
+      name: 'external-app2-{{`{{env}}`}}'
       namespace: argocd
       finalizers:
       - resources-finalizer.argocd.argoproj.io
@@ -24,11 +24,11 @@ spec:
       project: applications
       source:
         repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
-        targetRevision: {{ .Values.externalApps.externalApp.targetRevision }}
-        path: apps/external-app1/overlays/{{`{{env}}`}}
+        targetRevision: {{ .Values.externalApps.externalApp2.targetRevision }}
+        path: apps/external-app2/overlays/{{`{{env}}`}}
       destination:
         server: '{{`{{cluster}}`}}'
-        namespace: external-app1-{{`{{env}}`}}
+        namespace: external-app2-{{`{{env}}`}}
       syncPolicy:
         automated:
           prune: true

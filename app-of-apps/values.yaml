@@ -19,6 +19,9 @@ externalApps:
   externalApp:
     enabled: true
     targetRevision: HEAD
+  externalApp2:
+    enabled: true
+    targetRevision: HEAD
   phpWebApp:
     enabled: true
     targetRevision: HEAD
