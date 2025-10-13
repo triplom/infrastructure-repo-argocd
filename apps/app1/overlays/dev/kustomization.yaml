@@ -15,4 +15,4 @@ patches:
 images:
 - name: ghcr.io/triplom/app1:pipeline-test
   newName: ghcr.io/triplom/app1
-  newTag: latest
+  newTag: main-dcdaf90
