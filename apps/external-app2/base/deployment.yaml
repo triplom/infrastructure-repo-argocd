@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: external-app-deployment
+  name: external-app2-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: external-app
+      app: external-app2
   template:
     metadata:
       labels:
-        app: external-app
+        app: external-app2
     spec:
       containers:
-      - name: external-app
-        image: ghcr.io/triplom/external-app:latest
+      - name: external-app2
+        image: ghcr.io/triplom/external-app2:latest
         ports:
         - containerPort: 8080
         resources:

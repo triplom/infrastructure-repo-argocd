@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: external-app
-        image: ghcr.io/triplom/external-app:latest
+        image: ghcr.io/triplom/external-app1:latest
         ports:
         - containerPort: 8080
         resources:
