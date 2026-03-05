@@ -24,7 +24,7 @@ spec:
       project: applications
       source:
         repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
-        targetRevision: {{ .Values.externalApps.phpWebApp.targetRevision }}
+        targetRevision: {{ .Values.argocd.externalApps.phpWebApp.targetRevision | default "HEAD" }}
         path: apps/php-web-app/overlays/{{`{{env}}`}}
       destination:
         server: '{{`{{cluster}}`}}'

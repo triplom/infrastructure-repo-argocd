@@ -8,6 +8,6 @@ apps:
     enabled: true
 
 # Repository configuration
-repoURL: git@github.com:triplom/infrastructure-repo-argocd.git
+repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD
 

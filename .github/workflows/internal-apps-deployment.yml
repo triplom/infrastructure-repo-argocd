@@ -6,15 +6,11 @@ on:
     paths:
       - 'apps/app1/**'
       - 'apps/app2/**'
-      - 'src/app1/**'
-      - 'src/app2/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'apps/app1/**'
       - 'apps/app2/**'
-      - 'src/app1/**'
-      - 'src/app2/**'
   workflow_dispatch:
     inputs:
       environment:

@@ -1,5 +1,7 @@
 # Kubernetes & Docker
 *-cluster-kubeconfig
+*-kubeconfig
+ngrok-kubeconfig
 *.kubeconfig
 *.kubeconfig.bak
 .kube/
@@ -39,10 +41,12 @@ var/
 
 # Base64 encoded secrets
 *-base64.txt
-infrastructure/argocd/repositories/github-repo.yaml
 
 # ArgoCD repository credentials
 infrastructure/argocd/repositories/github-repo.yaml
 *.token
 *.credentials
-GITHUB-ACTIONS-SETUP-GUIDE.mdargocd-linux-amd64
+
+# Setup guides (not tracked)
+GITHUB-ACTIONS-SETUP-GUIDE.md
+argocd-linux-amd64

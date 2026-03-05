@@ -15,7 +15,7 @@ VERSION=$2
 echo "Updating $APP_NAME to version $VERSION"
 
 # Update base deployment
-sed -i "s|image: ghcr.io/yourorg/$APP_NAME:.*|image: ghcr.io/yourorg/$APP_NAME:$VERSION|g" apps/$APP_NAME/base/deployment.yaml
+sed -i "s|image: ghcr.io/triplom/$APP_NAME:.*|image: ghcr.io/triplom/$APP_NAME:$VERSION|g" apps/$APP_NAME/base/deployment.yaml
 
 # Commit the changes
 git add apps/$APP_NAME/base/deployment.yaml

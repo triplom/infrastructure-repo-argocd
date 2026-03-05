@@ -6,17 +6,21 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  - list:
-      elements:
-      - component: prometheus
-        env: dev
-        cluster: https://kubernetes.default.svc
-      - component: grafana
-        env: dev
-        cluster: https://kubernetes.default.svc
-      - component: alertmanager
-        env: dev
-        cluster: https://kubernetes.default.svc
+  - matrix:
+      generators:
+      - list:
+          elements:
+          - component: prometheus
+          - component: grafana
+          - component: alertmanager
+      - list:
+          elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+          - env: qa
+            cluster: https://kubernetes.default.svc
+          - env: prod
+            cluster: https://kubernetes.default.svc
   template:
     metadata:
       name: '{{`{{component}}`}}-{{`{{env}}`}}'

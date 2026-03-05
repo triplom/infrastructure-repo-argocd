@@ -14,9 +14,7 @@ spec:
     path: infrastructure
     directory:
       recurse: true
-      exclude: |
-        - argocd/**
-        - github-registry/**
+      exclude: "{argocd,github-registry}/**"
   destination:
     server: https://kubernetes.default.svc
     namespace: default

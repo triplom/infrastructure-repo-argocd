@@ -62,7 +62,7 @@ access_ui() {
     echo "1. Run: kubectl port-forward svc/argocd-server -n argocd 8080:443"
     echo "2. Open: https://localhost:8080"
     echo "3. Username: admin"
-    echo "4. Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "SZLptHkIse0Pnuq7")"
+    echo "4. Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "<run: argocd admin initial-password -n argocd>")"
     echo ""
 }
 
