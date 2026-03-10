@@ -8,7 +8,6 @@ patchesStrategicMerge:
 - patches.yaml
 namespace: app2-dev
 images:
-images:
 - name: ghcr.io/triplom/app2:pipeline-test
   newName: ghcr.io/triplom/app2
   newTag: main-dcdaf90
