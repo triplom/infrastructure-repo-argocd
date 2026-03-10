@@ -1,4 +1,4 @@
-{{ if .Values.externalApps.externalApp.enabled }}
+{{- if .Values.externalApps.externalApp.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -6,20 +6,20 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  - list:
-      elements:
-      - env: dev
-        cluster: https://kubernetes.default.svc
-      - env: qa
-        cluster: https://kubernetes.default.svc
-      - env: prod
-        cluster: https://kubernetes.default.svc
+    - list:
+        elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+          - env: qa
+            cluster: https://kubernetes.default.svc
+          - env: prod
+            cluster: https://kubernetes.default.svc
   template:
     metadata:
       name: 'external-app1-{{`{{env}}`}}'
       namespace: argocd
       finalizers:
-      - resources-finalizer.argocd.argoproj.io
+        - resources-finalizer.argocd.argoproj.io
     spec:
       project: applications
       source:
@@ -34,5 +34,5 @@ spec:
           prune: true
           selfHeal: true
         syncOptions:
-        - CreateNamespace=true
-{{ end }}
+          - CreateNamespace=true
+{{- end }}
