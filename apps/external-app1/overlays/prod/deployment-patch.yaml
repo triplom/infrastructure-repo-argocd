@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: external-app-deployment
+  name: external-app1-deployment
 spec:
   replicas: 3
