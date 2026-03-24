@@ -42,7 +42,7 @@ setup-argocd:
 .PHONY: bootstrap-argocd
 bootstrap-argocd:
 	@echo "Bootstrapping ArgoCD with root application..."
-	kubectl apply -f infrastructure/argocd/applications/root-new.yaml
+	kubectl apply -f infrastructure/argocd/applications/root.yaml
 	@echo "Bootstrapping complete! Check ArgoCD UI for progress."
 
 # Get ArgoCD admin password
