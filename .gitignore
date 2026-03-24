@@ -11,8 +11,7 @@ ngrok-kubeconfig
 *.crt
 
 # Development tools
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 .idea/
 *.swp
 *.swo
