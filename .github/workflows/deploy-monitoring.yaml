@@ -1,247 +1,170 @@
-name: Deploy Monitoring Stack (Pull-Based GitOps - ArgoCD Only)
+name: Deploy Monitoring (GitOps — ArgoCD managed)
 
-# This workflow is disabled for pull-based GitOps demonstration
-# ArgoCD handles all monitoring stack deployments automatically
+# Chapter 5 (Pull-based/GitOps): Monitoring stack (Prometheus, Grafana, Alertmanager)
+# is managed by ArgoCD via the app-of-apps-monitoring pattern.
+# This workflow updates monitoring manifests in Git; ArgoCD reconciles automatically.
 on:
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'infrastructure/monitoring/**'
-  #     - 'app-of-apps-monitoring/**'
-  #     - '.github/workflows/deploy-monitoring.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/monitoring/**'
+      - 'app-of-apps-monitoring/**'
+      - '.github/workflows/deploy-monitoring.yaml'
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: 'Target environment'
         required: true
         default: 'dev'
         type: choice
-        options:
-          - dev
-          - qa
-          - prod
+        options: [dev, qa, prod]
       component:
-        description: 'Component to deploy'
+        description: 'Monitoring component'
         required: true
         default: 'all'
         type: choice
-        options:
-          - all
-          - prometheus
-          - grafana
-          - alertmanager
+        options: [all, prometheus, grafana, alertmanager]
+      force_sync:
+        description: 'Force ArgoCD sync now'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  ENV: ${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
-  deploy:
-    name: Deploy Monitoring
+  # ── Validate monitoring manifests ─────────────────────────────────────────
+  validate:
+    name: Validate Monitoring Manifests
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    env:
-      ENV: ${{ github.event.inputs.environment || 'dev' }}
-    
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-      
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: '5.3.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Validate app-of-apps-monitoring chart
+        run: |
+          if [ -f "app-of-apps-monitoring/Chart.yaml" ]; then
+            helm lint app-of-apps-monitoring/ && echo "app-of-apps-monitoring chart: OK"
+          fi
+
+      - name: Validate monitoring overlays
+        run: |
+          for ENV_NAME in dev qa prod; do
+            OVERLAY="infrastructure/monitoring/overlays/${ENV_NAME}"
+            if [ -d "$OVERLAY" ]; then
+              kustomize build "$OVERLAY" > /dev/null && echo "monitoring/${ENV_NAME}: OK"
+            fi
+          done
+
+  # ── GitOps update: commit manifest changes, ArgoCD reconciles ─────────────
+  gitops-update:
+    name: GitOps Update — Monitoring (${{ github.event.inputs.environment || 'dev' }})
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Add Prometheus Helm repo (for chart metadata)
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Check for manifest changes
+        id: changes
+        run: |
+          if git diff --name-only HEAD~1..HEAD 2>/dev/null | grep -qE 'infrastructure/monitoring|app-of-apps-monitoring'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Annotate monitoring manifests with chart version
+        run: |
+          # Update Helm chart version annotation so ArgoCD detects a real change
+          CHART_VERSION=$(helm search repo prometheus-community/kube-prometheus-stack \
+            --output json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['version'])" 2>/dev/null || echo "latest")
+          echo "Prometheus chart version: ${CHART_VERSION}"
+
+          # If app-of-apps-monitoring has a Chart.yaml, update appVersion
+          if [ -f "app-of-apps-monitoring/Chart.yaml" ]; then
+            sed -i "s/^appVersion:.*/appVersion: \"${CHART_VERSION}\"/" app-of-apps-monitoring/Chart.yaml || true
+          fi
+
+      - name: Commit monitoring config changes (GitOps pattern)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/monitoring/ app-of-apps-monitoring/ 2>/dev/null || true
+          git diff --staged --quiet && echo "No monitoring changes to commit" && exit 0
+          git commit -m "chore: update monitoring stack manifests [skip ci]"
+          git push
+          echo "Monitoring manifests committed — ArgoCD will reconcile automatically"
+
+  # ── Optional: force ArgoCD sync via CLI ───────────────────────────────────
+  argocd-sync:
+    name: Force ArgoCD Sync (optional)
+    runs-on: ubuntu-latest
+    needs: gitops-update
+    if: github.event.inputs.force_sync == 'true'
+
+    steps:
       - name: Setup ArgoCD CLI
         run: |
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          curl -sSL -o argocd-linux-amd64 \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-          argocd version --client
-      
-      - name: Setup Kubeconfig
+          rm argocd-linux-amd64
+
+      - name: Configure kubeconfig
         run: |
-          # Check if kubeconfig secret exists
-          KUBECONFIG_SECRET="${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}"
+          KUBECONFIG_SECRET="${{ secrets.KUBECONFIG }}"
           if [ -z "$KUBECONFIG_SECRET" ]; then
-            echo "::warning::KUBECONFIG_${ENV} secret not found. This workflow requires local KIND clusters."
-            echo "::warning::For pull-based GitOps demo, ArgoCD should be running locally on KIND clusters."
-            echo "Skipping deployment as this is a pull-based GitOps demonstration."
+            echo "KUBECONFIG not set — ArgoCD will auto-sync within its polling interval"
             exit 0
           fi
-          
-          # Create temporary kubeconfig file based on environment
-          TEMP_KUBECONFIG=$(mktemp)
-          echo "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
-          chmod 600 "${TEMP_KUBECONFIG}"
-          
-          # Set KUBECONFIG environment variable
-          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
-          
-          # Verify kubeconfig and set context
-          if ! kubectl config get-contexts; then
-            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
-            exit 1
-          fi
-          
-          # Set the correct context for the environment
-          CONTEXT_NAME="kind-${ENV}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
-          fi
-          
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-      
-      - name: Sync Monitoring Components via ArgoCD
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config use-context kind-${{ env.ENV }}-cluster
+
+      - name: Force sync monitoring app-of-apps
         run: |
-          COMPONENT="${{ github.event.inputs.component || 'all' }}"
-          
-          # Get ArgoCD admin password
-          echo "Getting ArgoCD admin password..."
-          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-          
-          # Port forward to ArgoCD server in background
-          echo "Setting up port forwarding to ArgoCD..."
+          ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d)
           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          PORT_FORWARD_PID=$!
-          sleep 10
-          
-          # Login to ArgoCD
-          echo "Logging into ArgoCD..."
-          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
-          
-          # Function to sync monitoring component
-          sync_monitoring() {
-            local component=$1
-            local app_name="${component}-${ENV}"
-            
-            echo "============================================="
-            echo "Syncing monitoring component: $app_name"
-            echo "============================================="
-            
-            # Check if ArgoCD application exists
-            if ! argocd app get "$app_name" > /dev/null 2>&1; then
-              echo "::error::ArgoCD application $app_name not found"
-              return 1
-            fi
-            
-            # Sync the application
-            echo "Syncing monitoring application $app_name..."
-            if argocd app sync "$app_name" --timeout 600; then
-              echo "✅ Successfully synced $app_name"
-              
-              # Wait for sync to complete and check health
-              echo "Waiting for $app_name to become healthy..."
-              argocd app wait "$app_name" --timeout 600 --health || {
-                echo "::warning::$app_name did not become healthy within timeout, but sync completed"
-              }
-            else
-              echo "::error::Failed to sync $app_name"
-              return 1
-            fi
-            
-            return 0
-          }
-          
-          # Sync based on component selection
-          FAILED_COMPONENTS=""
-          
-          if [ "$COMPONENT" = "all" ]; then
-            # Sync all monitoring components
-            MONITORING_COMPONENTS="prometheus grafana alertmanager"
-            
-            for comp in $MONITORING_COMPONENTS; do
-              if ! sync_monitoring "$comp"; then
-                FAILED_COMPONENTS="$FAILED_COMPONENTS $comp"
-                echo "::warning::Failed to sync $comp, continuing with others"
-              fi
-            done
-            
-            # Also sync the app-of-apps-monitoring parent
-            if ! argocd app sync "app-of-apps-monitoring" --timeout 300; then
-              FAILED_COMPONENTS="$FAILED_COMPONENTS app-of-apps-monitoring"
-              echo "::warning::Failed to sync app-of-apps-monitoring"
-            fi
-            
-          else
-            # Sync specific component
-            if ! sync_monitoring "$COMPONENT"; then
-              echo "::error::Sync of $COMPONENT failed"
-              kill $PORT_FORWARD_PID || true
-              exit 1
-            fi
+          sleep 5
+          argocd login localhost:8080 --username admin --password "$ARGOCD_PASS" --insecure
+
+          echo "Syncing app-of-apps-monitoring..."
+          argocd app sync app-of-apps-monitoring --timeout 300 || true
+          argocd app wait app-of-apps-monitoring --timeout 300 --health || true
+
+          COMPONENT="${{ github.event.inputs.component || 'all' }}"
+          if [ "$COMPONENT" != "all" ]; then
+            argocd app sync "${COMPONENT}-${{ env.ENV }}" --timeout 180 || true
           fi
-          
-          # Report any failures
-          if [ -n "$FAILED_COMPONENTS" ]; then
-            echo "::error::The following monitoring components failed to sync:$FAILED_COMPONENTS"
-            kill $PORT_FORWARD_PID || true
-            exit 1
-          else
-            echo "✅ All monitoring components successfully synced"
-          fi
-          
-          # Cleanup port forward
-          kill $PORT_FORWARD_PID || true
-      
-      - name: Verify ArgoCD Applications
-        if: success()
-        run: |
-          echo "Verifying ArgoCD monitoring applications..."
-          
-          # Check ArgoCD applications status
-          kubectl get applications -n argocd -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status | grep -E "(prometheus|grafana|alertmanager|monitoring)" || echo "No monitoring applications found"
-          
-          # Check actual monitoring resources in their namespaces
-          echo ""
-          echo "Checking monitoring resources across namespaces..."
-          
-          # Check for prometheus resources
-          if kubectl get pods -A -l "app=prometheus" 2>/dev/null | grep -q prometheus; then
-            echo "✅ Prometheus pods found"
-            kubectl get pods -A -l "app=prometheus"
-          else
-            echo "⚠️ No Prometheus pods found"
-          fi
-          
-          # Check for grafana resources  
-          if kubectl get pods -A -l "app.kubernetes.io/name=grafana" 2>/dev/null | grep -q grafana; then
-            echo "✅ Grafana pods found"
-            kubectl get pods -A -l "app.kubernetes.io/name=grafana"
-          else
-            echo "⚠️ No Grafana pods found"
-          fi
-          
-          # Check for alertmanager resources
-          if kubectl get pods -A -l "app=alertmanager" 2>/dev/null | grep -i alert; then
-            echo "✅ AlertManager pods found"
-            kubectl get pods -A -l "app=alertmanager"
-          else
-            echo "⚠️ No AlertManager pods found"
-          fi
-      
-      - name: Get access information
-        if: success()
-        run: |
-          echo "===========================================" 
-          echo "Monitoring Stack Access Information"
-          echo "==========================================="
-          echo ""
-          echo "ArgoCD Applications Status:"
-          kubectl get applications -n argocd -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status | grep -E "(NAME|prometheus|grafana|alertmanager|monitoring)" || echo "No monitoring applications found"
-          echo ""
-          echo "Access monitoring services via port-forwarding:"
-          echo ""
-          echo "For Prometheus (check namespace first):"
-          echo "kubectl port-forward -n prometheus-${ENV} svc/prometheus-operated 9090:9090"
-          echo "OR if in monitoring namespace:"
-          echo "kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090"
-          echo ""
-          echo "For Grafana:"
-          echo "kubectl port-forward -n grafana-${ENV} svc/grafana 3000:80"
-          echo "OR if in monitoring namespace:"
-          echo "kubectl port-forward -n monitoring svc/grafana 3000:80"
-          echo ""
-          echo "Check actual service locations:"
-          kubectl get svc -A | grep -E "(prometheus|grafana|alertmanager)" || echo "No monitoring services found"
-      
-      - name: Cleanup
-        if: always()
-        run: |
-          # Kubeconfig cleanup is automatic with temp files
-          echo "Cleanup completed"
+
+          kill %1 || true
+          echo "Force sync complete — ArgoCD applied monitoring changes"

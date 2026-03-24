@@ -1,272 +1,192 @@
-name: Deploy Applications (Pull-Based GitOps - ArgoCD Only)
+name: CI — Build & Deploy Apps (GitOps via ArgoCD)
 
-# This workflow is disabled for pull-based GitOps demonstration
-# ArgoCD handles all application deployments automatically
+# Chapter 5 (Pull-based/GitOps): CI builds images → pushes to Docker Hub →
+# updates Kustomize manifests in Git → ArgoCD auto-syncs to cluster.
+# Key difference from push-based: CI never touches the cluster directly.
 on:
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'apps/**'
-  #     - 'src/**'
-  #     - '.github/workflows/deploy-apps.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'apps/**'
+      - '.github/workflows/deploy-apps.yaml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: 'Target environment'
         required: true
         default: 'dev'
         type: choice
-        options:
-          - dev
-          - qa
-          - prod
+        options: [dev, qa, prod]
       application:
-        description: 'Application to deploy (empty for all)'
-        required: false
-        default: ''
+        description: 'Application to build and deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, app1, app2]
+
+permissions:
+  contents: write   # needed to commit manifest updates back to Git
+
+env:
+  IMAGE_PREFIX: triplom
+  ENV: ${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
-  deploy:
-    name: Deploy Applications
+  # ── Job 1: Build & push images to Docker Hub ──────────────────────────────
+  build:
+    name: Build & Push — ${{ matrix.app }}
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    env:
-      ENV: ${{ github.event.inputs.environment || 'dev' }}
-    
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [app1, app2]
+
+    outputs:
+      sha_tag: ${{ steps.sha_tag.outputs.tag }}
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-      
-      - name: Setup Kustomize
-        uses: imranismail/setup-kustomize@v2
+
+      - name: Skip if component not requested
+        if: github.event.inputs.application != '' && github.event.inputs.application != 'all' && github.event.inputs.application != matrix.app
+        run: |
+          echo "Skipping ${{ matrix.app }} — not requested"
+          exit 0
+
+      - name: Compute short SHA tag
+        id: sha_tag
+        run: echo "tag=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
         with:
-          kustomize-version: "4.5.7"
-      
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.app }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/${{ matrix.app }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}:${{ steps.sha_tag.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        run: |
+          echo "Built: ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}:${{ steps.sha_tag.outputs.tag }}"
+
+  # ── Job 2: Update Kustomize manifests in Git (GitOps pattern) ─────────────
+  # ArgoCD detects this commit and syncs — CI never kubectl-applies to cluster.
+  gitops-update:
+    name: Update Manifests (GitOps) — ${{ github.event.inputs.environment || 'dev' }}
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Update image tags in Kustomize overlays
+        env:
+          SHA_TAG: ${{ needs.build.outputs.sha_tag }}
+        run: |
+          APP_INPUT="${{ github.event.inputs.application || 'all' }}"
+          ENV_NAME="${{ env.ENV }}"
+
+          APPS=()
+          if [ "$APP_INPUT" = "all" ]; then
+            APPS=(app1 app2)
+          else
+            APPS=("$APP_INPUT")
+          fi
+
+          for APP in "${APPS[@]}"; do
+            KFILE="apps/${APP}/overlays/${ENV_NAME}/kustomization.yaml"
+            if [ -f "$KFILE" ]; then
+              # Update the newTag field for this app's image
+              sed -i "s/newTag: .*/newTag: \"${SHA_TAG}\"/" "$KFILE"
+              echo "Updated ${APP} → ${SHA_TAG} in ${ENV_NAME}"
+            else
+              echo "kustomization not found: $KFILE — skipping"
+            fi
+          done
+
+      - name: Commit manifest update (triggers ArgoCD sync)
+        env:
+          SHA_TAG: ${{ needs.build.outputs.sha_tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/
+          git diff --staged --quiet && echo "No manifest changes to commit" && exit 0
+          git commit -m "chore: update app images to ${SHA_TAG} in ${{ env.ENV }} [skip ci]"
+          git push
+          echo "Manifest committed — ArgoCD will detect and sync automatically (pull-based GitOps)"
+
+  # ── Job 3: Report ArgoCD sync status (informational) ──────────────────────
+  argocd-status:
+    name: ArgoCD Sync Status
+    runs-on: ubuntu-latest
+    needs: gitops-update
+    if: github.event_name != 'pull_request'
+
+    steps:
       - name: Setup ArgoCD CLI
         run: |
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          curl -sSL -o argocd-linux-amd64 \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-          argocd version --client
+          rm argocd-linux-amd64
 
-      - name: Pull-Based GitOps Validation
-        id: kubeconfig-check
+      - name: Check ArgoCD sync (if cluster accessible)
         run: |
-          # Check if kubeconfig secret exists
-          KUBECONFIG_SECRET="${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}"
+          KUBECONFIG_SECRET="${{ secrets.KUBECONFIG }}"
           if [ -z "$KUBECONFIG_SECRET" ]; then
-            echo "🎯 Pull-Based GitOps Demonstration Mode"
-            echo "========================================"
+            echo "=== GitOps Deployment Summary ==="
+            echo "Image manifests updated in Git."
+            echo "ArgoCD is polling Git every ~3 minutes and will sync automatically."
+            echo "No direct cluster access required from CI — this is pull-based GitOps."
             echo ""
-            echo "✅ This workflow demonstrates pull-based GitOps principles"
-            echo "✅ KUBECONFIG_${ENV} secret not found (expected for demo)"
-            echo "✅ ArgoCD handles all deployments via pull-based synchronization"
-            echo "✅ No direct cluster access required from GitHub Actions"
-            echo ""
-            echo "📋 Pull-Based GitOps Flow:"
-            echo "  1. ✅ CI/CD Pipeline builds and pushes container images"
-            echo "  2. ✅ Manifests updated in Git repository"  
-            echo "  3. ✅ ArgoCD monitors Git for changes (locally)"
-            echo "  4. ✅ ArgoCD pulls changes and deploys to clusters"
-            echo "  5. ✅ Applications updated without external push access"
-            echo ""
-            echo "🏠 For local ArgoCD access:"
-            echo "  ArgoCD UI: https://localhost:8080"
-            echo "  Username: admin"
-            echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
-            echo ""
-            echo "🎓 This demonstrates pull-based GitOps efficiency for thesis evaluation"
-            echo "Workflow completed successfully - ArgoCD will handle deployment automatically"
-            echo "has-kubeconfig=false" >> $GITHUB_OUTPUT
+            echo "To check status locally:"
+            echo "  argocd app list"
+            echo "  argocd app get app1-${{ env.ENV }}"
             exit 0
-          fi
-          
-          # If kubeconfig exists, validate and decode it
-          echo "🔧 Setting up kubeconfig for direct cluster access..."
-          TEMP_KUBECONFIG=$(mktemp)
-          
-          # Validate base64 content before decoding
-          if echo "$KUBECONFIG_SECRET" | base64 -d > /dev/null 2>&1; then
-            echo "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
-            chmod 600 "${TEMP_KUBECONFIG}"
-            echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
-            echo "✅ Kubeconfig decoded successfully"
-            echo "has-kubeconfig=true" >> $GITHUB_OUTPUT
-          else
-            echo "::warning::Invalid base64 content in KUBECONFIG_${ENV} secret"
-            echo "::warning::Secret exists but contains malformed data"
-            echo ""
-            echo "🎯 Pull-Based GitOps Mode (Invalid Secret Detected)"
-            echo "=================================================="
-            echo ""
-            echo "✅ KUBECONFIG_${ENV} secret found but contains invalid base64 data"
-            echo "✅ Switching to pull-based GitOps demonstration mode"
-            echo "✅ ArgoCD handles all deployments via pull-based synchronization"
-            echo "✅ No direct cluster access required from GitHub Actions"
-            echo ""
-            echo "📋 To fix the secret (optional):"
-            echo "  gh secret delete KUBECONFIG_${ENV}  # Remove invalid secret"
-            echo "  # Or follow KUBECONFIG-SETUP-GUIDE.md to set valid secret"
-            echo ""
-            echo "📋 Pull-Based GitOps Flow (Recommended):"
-            echo "  1. ✅ CI/CD Pipeline builds and pushes container images"
-            echo "  2. ✅ Manifests updated in Git repository"  
-            echo "  3. ✅ ArgoCD monitors Git for changes (locally)"
-            echo "  4. ✅ ArgoCD pulls changes and deploys to clusters"
-            echo "  5. ✅ Applications updated without external push access"
-            echo ""
-            echo "🎓 This demonstrates pull-based GitOps efficiency for thesis evaluation"
-            echo "Workflow completed successfully - ArgoCD will handle deployment automatically"
-            echo "has-kubeconfig=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Verify kubeconfig and set context
-          if ! kubectl config get-contexts; then
-            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
-            exit 1
-          fi
-          
-          # Set the correct context for the environment
-          CONTEXT_NAME="kind-${ENV}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
-          fi
-          
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-          
-          # Test connectivity
-          echo "Testing cluster connectivity..."
-          if ! kubectl cluster-info --request-timeout=30s; then
-            echo "::warning::Cannot connect to cluster directly, will use --validate=false"
           fi
 
-      - name: Sync Applications via ArgoCD
-        if: steps.kubeconfig-check.outputs.has-kubeconfig == 'true'
-        run: |
-          APP="${{ github.event.inputs.application }}"
-          FAILED_APPS=""
-          
-          # Verify kubeconfig and set context
-          if ! kubectl config get-contexts; then
-            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
-            exit 1
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config use-context kind-${{ env.ENV }}-cluster
+
+          ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "")
+          if [ -z "$ARGOCD_PASS" ]; then
+            echo "ArgoCD not yet installed or secret not found"
+            exit 0
           fi
-          
-          # Set the correct context for the environment
-          CONTEXT_NAME="kind-${ENV}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
-          fi
-          
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-          
-          # Test connectivity
-          echo "Testing cluster connectivity..."
-          if ! kubectl cluster-info --request-timeout=30s; then
-            echo "::warning::Cannot connect to cluster directly"
-            exit 1
-          fi
-          
-          # Get ArgoCD admin password
-          echo "Getting ArgoCD admin password..."
-          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-          
-          # Port forward to ArgoCD server in background
-          echo "Setting up port forwarding to ArgoCD..."
+
           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          PORT_FORWARD_PID=$!
-          sleep 10
-          
-          # Login to ArgoCD
-          echo "Logging into ArgoCD..."
-          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
-          
-          # Function to sync a single app via ArgoCD
-          sync_app() {
-            local app=$1
-            local env=$2
-            local app_name="${app}-${env}"
-            
-            echo "============================================="
-            echo "Syncing $app_name via ArgoCD"
-            echo "============================================="
-            
-            # Check if ArgoCD application exists
-            if ! argocd app get "$app_name" > /dev/null 2>&1; then
-              echo "::warning::ArgoCD application $app_name not found. This may be normal if it's managed by ApplicationSet."
-              
-              # Look for ApplicationSet managed apps
-              if kubectl get applications -n argocd -l "app=$app" | grep -q "$app_name"; then
-                echo "Found $app_name managed by ApplicationSet"
-              else
-                echo "::error::Application $app_name not found in ArgoCD"
-                return 1
-              fi
-            fi
-            
-            # Sync the application
-            echo "Syncing application $app_name..."
-            if argocd app sync "$app_name" --timeout 300; then
-              echo "✅ Successfully synced $app_name"
-              
-              # Wait for sync to complete and check health
-              echo "Waiting for $app_name to become healthy..."
-              argocd app wait "$app_name" --timeout 300 --health || {
-                echo "::warning::$app_name did not become healthy within timeout, but sync completed"
-              }
-            else
-              echo "::error::Failed to sync $app_name"
-              return 1
-            fi
-            
-            return 0
-          }
-          
-          # Deploy either specific app or all apps
-          if [ -n "$APP" ]; then
-            # Sync specific app
-            if ! sync_app "$APP" "${ENV}"; then
-              echo "::error::Sync of $APP failed"
-              kill $PORT_FORWARD_PID || true
-              exit 1
-            fi
-          else
-            # Sync all business applications (app1, app2, etc.)
-            for APP_DIR in apps/*/; do
-              APP=$(basename $APP_DIR)
-              # Skip infrastructure apps (they should be in infrastructure/ folder)
-              if [[ "$APP" == "prometheus" || "$APP" == "grafana" || "$APP" == "alertmanager" ]]; then
-                echo "Skipping infrastructure app: $APP (use deploy-monitoring pipeline)"
-                continue
-              fi
-              
-              if ! sync_app "$APP" "${ENV}"; then
-                FAILED_APPS="$FAILED_APPS $APP"
-                echo "::warning::Failed to sync $APP, continuing with others"
-              fi
-            done
-            
-            # Report any failures
-            if [ -n "$FAILED_APPS" ]; then
-              echo "::error::The following applications failed to sync:$FAILED_APPS"
-              kill $PORT_FORWARD_PID || true
-              exit 1
-            else
-              echo "✅ All applications successfully synced to ${ENV}"
-            fi
-          fi
-          
-          # Cleanup port forward
-          kill $PORT_FORWARD_PID || true
-      
-      - name: Cleanup
-        if: always()
-        run: |
-          # Nothing to clean up when using temporary files
-          # They're automatically removed when the workflow finishes
+          sleep 5
+          argocd login localhost:8080 --username admin --password "$ARGOCD_PASS" --insecure
+
+          echo "=== ArgoCD application status ==="
+          argocd app list || true
+
+          kill %1 || true

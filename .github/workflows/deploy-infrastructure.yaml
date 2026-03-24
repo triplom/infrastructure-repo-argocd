@@ -1,193 +1,214 @@
-name: Deploy Infrastructure (Pull-Based GitOps - ArgoCD Only)
+name: Deploy Infrastructure + ArgoCD Bootstrap
 
-# This workflow is disabled for pull-based GitOps demonstration
-# ArgoCD handles all infrastructure deployments automatically
+# Chapter 5 (Pull-based/GitOps): Install KIND clusters, cert-manager, ingress-nginx
+# AND install/configure ArgoCD with app-of-apps pattern.
+# Key difference from push-based: ArgoCD owns cluster state after bootstrap.
 on:
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'infrastructure/argocd/**'
-  #     - 'infrastructure/github-registry/**'
-  #     - 'infrastructure/cert-manager/**'
-  #     - 'infrastructure/ingress-nginx/**'
-  #     - 'app-of-apps-infra/**'
-  #     - '.github/workflows/deploy-infrastructure.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'kind/**'
+      - 'infrastructure/argocd/**'
+      - 'infrastructure/cert-manager/**'
+      - 'infrastructure/ingress-nginx/**'
+      - 'root-app/**'
+      - 'app-of-apps-infra/**'
+      - '.github/workflows/deploy-infrastructure.yaml'
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: 'Target environment'
         required: true
         default: 'dev'
         type: choice
-        options:
-          - dev
-          - qa
-          - prod
-      component:
-        description: 'Component to deploy'
+        options: [dev, qa, prod]
+      action:
+        description: 'Action'
         required: true
-        default: 'all'
+        default: 'bootstrap'
         type: choice
-        options:
-          - all
-          - cert-manager
-          - ingress-nginx
-          - github-registry
+        options: [bootstrap, sync-infra, validate]
+
+env:
+  ENV: ${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
-  deploy:
-    name: Deploy Infrastructure
+  # ── Validate all manifests (ArgoCD + infrastructure) ──────────────────────
+  validate:
+    name: Validate Manifests
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    env:
-      ENV: ${{ github.event.inputs.environment || 'dev' }}
-    
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: '5.3.0'
+
+      - name: Setup Helm (for chart rendering)
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Validate ArgoCD kustomize manifests
+        run: |
+          if [ -d "infrastructure/argocd/base" ]; then
+            kustomize build infrastructure/argocd/base > /dev/null && echo "argocd base: OK"
+          fi
+
+      - name: Validate cert-manager manifests
+        run: |
+          if [ -d "infrastructure/cert-manager/base" ]; then
+            kustomize build infrastructure/cert-manager/base > /dev/null && echo "cert-manager: OK"
+          fi
+
+      - name: Validate ingress-nginx manifests
+        run: |
+          if [ -d "infrastructure/ingress-nginx/base" ]; then
+            kustomize build infrastructure/ingress-nginx/base > /dev/null && echo "ingress-nginx: OK"
+          fi
+
+      - name: Validate root-app Helm chart
+        run: |
+          if [ -f "root-app/Chart.yaml" ]; then
+            helm lint root-app/ && echo "root-app chart: OK"
+          fi
+
+      - name: Validate app-of-apps-infra chart
+        run: |
+          if [ -f "app-of-apps-infra/Chart.yaml" ]; then
+            helm lint app-of-apps-infra/ && echo "app-of-apps-infra: OK"
+          fi
+
+  # ── Bootstrap: install ArgoCD + register app-of-apps ─────────────────────
+  bootstrap:
+    name: Bootstrap ArgoCD (${{ github.event.inputs.environment || 'dev' }})
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.action == 'bootstrap' || github.event_name == 'push'
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
-      
-      - name: Setup ArgoCD CLI
-        run: |
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-          argocd version --client
-      
+
       - name: Setup Helm
         uses: azure/setup-helm@v3
         with:
-          version: 'v3.13.3'
-      
-      - name: Setup Kubeconfig
+          version: 'v3.14.0'
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: '5.3.0'
+
+      - name: Setup ArgoCD CLI
         run: |
-          # Check if kubeconfig secret exists
-          KUBECONFIG_SECRET="${{ secrets[format('KUBECONFIG_{0}', env.ENV)] }}"
+          curl -sSL -o argocd-linux-amd64 \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
+          argocd version --client
+
+      - name: Configure kubeconfig
+        run: |
+          KUBECONFIG_SECRET="${{ secrets.KUBECONFIG }}"
           if [ -z "$KUBECONFIG_SECRET" ]; then
-            echo "::warning::KUBECONFIG_${ENV} secret not found. This workflow requires local KIND clusters."
-            echo "::warning::For pull-based GitOps demo, ArgoCD should be running locally on KIND clusters."
-            echo "Skipping deployment as this is a pull-based GitOps demonstration."
+            echo "KUBECONFIG secret not set — simulation mode"
+            echo "GitOps bootstrap requires cluster access once; ArgoCD reconciles thereafter"
             exit 0
           fi
-          
-          # Create temporary kubeconfig file based on environment
-          TEMP_KUBECONFIG=$(mktemp)
-          echo "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
-          chmod 600 "${TEMP_KUBECONFIG}"
-          
-          # Set KUBECONFIG environment variable
-          echo "KUBECONFIG=${TEMP_KUBECONFIG}" >> $GITHUB_ENV
-          
-          # Verify kubeconfig and set context
-          if ! kubectl config get-contexts; then
-            echo "::error::Failed to get kubectl contexts. Check KUBECONFIG_${ENV} secret."
-            exit 1
-          fi
-          
-          # Set the correct context for the environment
-          CONTEXT_NAME="kind-${ENV}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
-          fi
-          
-          echo "Using Kubernetes context: $(kubectl config current-context)"
-      
-      - name: Sync Infrastructure Components via ArgoCD
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config use-context kind-${{ env.ENV }}-cluster
+          kubectl cluster-info
+
+      - name: Install cert-manager (prerequisite)
         run: |
-          COMPONENT="${{ github.event.inputs.component || 'all' }}"
-          
-          # Get ArgoCD admin password
-          echo "Getting ArgoCD admin password..."
-          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-          
-          # Port forward to ArgoCD server in background
-          echo "Setting up port forwarding to ArgoCD..."
-          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          PORT_FORWARD_PID=$!
-          sleep 10
-          
-          # Login to ArgoCD
-          echo "Logging into ArgoCD..."
-          argocd login localhost:8080 --username admin --password "${ARGOCD_PASSWORD}" --insecure
-          
-          # Function to sync infrastructure component
-          sync_infrastructure() {
-            local component=$1
-            
-            echo "============================================="
-            echo "Syncing infrastructure component: $component"
-            echo "============================================="
-            
-            # Check if ArgoCD application exists
-            if ! argocd app get "$component" > /dev/null 2>&1; then
-              echo "::error::ArgoCD application $component not found"
-              return 1
-            fi
-            
-            # Sync the application
-            echo "Syncing infrastructure application $component..."
-            if argocd app sync "$component" --timeout 300; then
-              echo "✅ Successfully synced $component"
-              
-              # Wait for sync to complete and check health
-              echo "Waiting for $component to become healthy..."
-              argocd app wait "$component" --timeout 300 --health || {
-                echo "::warning::$component did not become healthy within timeout, but sync completed"
-              }
-            else
-              echo "::error::Failed to sync $component"
-              return 1
-            fi
-            
-            return 0
-          }
-          
-          # Sync based on component selection
-          FAILED_COMPONENTS=""
-          
-          if [ "$COMPONENT" = "all" ]; then
-            # Sync all infrastructure components
-            INFRA_COMPONENTS="cert-manager ingress-nginx github-registry"
-            
-            for comp in $INFRA_COMPONENTS; do
-              if ! sync_infrastructure "$comp"; then
-                FAILED_COMPONENTS="$FAILED_COMPONENTS $comp"
-                echo "::warning::Failed to sync $comp, continuing with others"
-              fi
-            done
-            
-            # Also sync the app-of-apps-infra parent
-            if ! sync_infrastructure "app-of-apps-infra"; then
-              FAILED_COMPONENTS="$FAILED_COMPONENTS app-of-apps-infra"
-              echo "::warning::Failed to sync app-of-apps-infra"
-            fi
-            
-          else
-            # Sync specific component
-            if ! sync_infrastructure "$COMPONENT"; then
-              echo "::error::Sync of $COMPONENT failed"
-              kill $PORT_FORWARD_PID || true
-              exit 1
-            fi
-          fi
-          
-          # Report any failures
-          if [ -n "$FAILED_COMPONENTS" ]; then
-            echo "::error::The following infrastructure components failed to sync:$FAILED_COMPONENTS"
-            kill $PORT_FORWARD_PID || true
-            exit 1
-          else
-            echo "✅ All infrastructure components successfully synced"
-          fi
-          
-          # Cleanup port forward
-          kill $PORT_FORWARD_PID || true
-      
-      - name: Cleanup
-        if: always()
+          echo "=== GitOps bootstrap: Installing cert-manager ==="
+          kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+          kustomize build infrastructure/cert-manager/base | kubectl apply --server-side -f -
+          kubectl wait --for=condition=available --timeout=180s \
+            deployment/cert-manager -n cert-manager || true
+
+      - name: Install ingress-nginx (prerequisite)
         run: |
-          # Remove kubeconfig when done
-          rm -f ./kubeconfig
+          echo "=== GitOps bootstrap: Installing ingress-nginx ==="
+          kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f -
+          OVERLAY="infrastructure/ingress-nginx/overlays/${{ env.ENV }}"
+          if [ -d "$OVERLAY" ]; then
+            kustomize build "$OVERLAY" | kubectl apply --server-side -f -
+          else
+            kustomize build infrastructure/ingress-nginx/base | kubectl apply --server-side -f -
+          fi
+
+      - name: Install ArgoCD
+        run: |
+          echo "=== GitOps: Installing ArgoCD on ${{ env.ENV }} cluster ==="
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+          if [ -d "infrastructure/argocd/base" ]; then
+            kustomize build infrastructure/argocd/base | kubectl apply --server-side -f -
+          else
+            kubectl apply --server-side -n argocd \
+              -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          fi
+
+          echo "Waiting for ArgoCD server..."
+          kubectl wait --for=condition=available --timeout=300s \
+            deployment/argocd-server -n argocd
+          echo "ArgoCD installed"
+
+      - name: Bootstrap app-of-apps (root application)
+        run: |
+          echo "=== GitOps: Bootstrapping app-of-apps root application ==="
+          # This single kubectl apply kicks off the entire GitOps tree.
+          # ArgoCD's root app will create app-of-apps-infra, app-of-apps-monitoring, app-of-apps.
+          # All subsequent reconciliation is pull-based — no more CI pushes needed.
+          kubectl apply -n argocd -f - <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: root
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
+              targetRevision: HEAD
+              path: root-app
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: argocd
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+                - ServerSideApply=true
+          EOF
+          echo "Root app-of-apps registered — ArgoCD will now reconcile all child apps"
+
+      - name: Validate ArgoCD bootstrap
+        run: |
+          echo "=== GitOps: ArgoCD bootstrap validation ==="
+          kubectl get pods -n argocd 2>/dev/null || true
+          kubectl get applications -n argocd 2>/dev/null || true
+          echo "ArgoCD is now the owner of cluster state (pull-based GitOps)"
+          echo "Further changes to Git will be automatically reconciled by ArgoCD"
+
+      - name: Print ArgoCD access info
+        run: |
+          echo "=== ArgoCD Access ==="
+          echo "UI: kubectl port-forward svc/argocd-server -n argocd 8080:443"
+          echo "URL: https://localhost:8080"
+          echo "User: admin"
+          echo "Pass: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
