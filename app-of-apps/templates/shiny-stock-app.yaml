@@ -1,0 +1,29 @@
+{{- if .Values.shinyStockApp.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shiny-stock-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: applications
+  source:
+    repoURL: {{ .Values.shinyStockApp.repoURL }}
+    targetRevision: {{ .Values.shinyStockApp.targetRevision }}
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: finance
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

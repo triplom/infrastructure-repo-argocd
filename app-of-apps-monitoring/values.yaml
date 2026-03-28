@@ -7,3 +7,8 @@ argocd:
 # Target repository for monitoring components
 targetRepo: https://github.com/triplom/infrastructure-repo-argocd.git
 targetRevision: HEAD
+
+# kube-prometheus-stack manages Prometheus + Grafana + Alertmanager together
+kubePrometheusStack:
+  enabled: true
+  chartVersion: "82.15.0"

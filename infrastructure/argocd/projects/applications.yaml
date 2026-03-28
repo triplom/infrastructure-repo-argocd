@@ -20,6 +20,10 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: 'php-web-app*'
     server: https://kubernetes.default.svc
+  - namespace: 'finance'
+    server: https://kubernetes.default.svc
+  - namespace: 'headlamp'
+    server: https://kubernetes.default.svc
   clusterResourceWhitelist:
   - group: '*'
     kind: '*'

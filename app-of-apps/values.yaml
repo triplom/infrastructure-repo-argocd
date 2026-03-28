@@ -28,3 +28,14 @@ externalApps:
   phpWebApp:
     enabled: false
     targetRevision: HEAD
+
+# Shiny Stock App
+shinyStockApp:
+  enabled: true
+  repoURL: https://github.com/triplom/shiny-python-stock-app.git
+  targetRevision: HEAD
+
+# Headlamp Kubernetes UI
+headlamp:
+  enabled: true
+  chartVersion: "0.41.0"
