@@ -9,9 +9,24 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: {{ .Values.targetRepo }}
-    targetRevision: {{ .Values.targetRevision }}
-    path: infrastructure/ingress-nginx
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.15.1
+    helm:
+      values: |
+        controller:
+          replicaCount: 1
+          service:
+            type: NodePort
+            nodePorts:
+              http: 30080
+              https: 30443
+          config:
+            use-forwarded-headers: "true"
+          metrics:
+            enabled: true
+          autoscaling:
+            enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
@@ -21,5 +36,5 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
-    - Replace=true
+    - ServerSideApply=true
 {{ end }}
