@@ -1,15 +1,16 @@
-# Internal applications configuration (from src/ directory)
+# Internal applications configuration
+# ApplicationSet CRD is not installed in this cluster — all disabled
 argocd:
   app1:
-    enabled: true
+    enabled: false
   app2:
-    enabled: true
+    enabled: false
   externalApps:
     externalApp:
-      enabled: true
+      enabled: false
       targetRevision: HEAD
     phpWebApp:
-      enabled: true
+      enabled: false
       targetRevision: HEAD
 
 # Target repository for internal applications
@@ -19,11 +20,11 @@ targetRevision: HEAD
 # External repositories configuration
 externalApps:
   externalApp:
-    enabled: true
+    enabled: false
     targetRevision: HEAD
   externalApp2:
-    enabled: true
+    enabled: false
     targetRevision: HEAD
   phpWebApp:
-    enabled: true
+    enabled: false
     targetRevision: HEAD
