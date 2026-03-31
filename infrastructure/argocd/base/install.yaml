@@ -387,8 +387,8 @@ spec:
       - command:
         - entrypoint.sh
         - argocd-applicationset-controller
-        image: quay.io/argoproj/argocd:v2.5.4
-        imagePullPolicy: Always
+        image: quay.io/argoproj/argocd:v3.3.5
+        imagePullPolicy: IfNotPresent
         name: argocd-applicationset-controller
         ports:
         - containerPort: 7000
@@ -417,8 +417,8 @@ spec:
         - argocd-server
         - --staticassets
         - /shared/app
-        image: quay.io/argoproj/argocd:v2.5.4
-        imagePullPolicy: Always
+        image: quay.io/argoproj/argocd:v3.3.5
+        imagePullPolicy: IfNotPresent
         name: argocd-server
         ports:
         - containerPort: 8080
@@ -448,8 +448,8 @@ spec:
       - command:
         - uid_entrypoint.sh
         - argocd-repo-server
-        image: quay.io/argoproj/argocd:v2.5.4
-        imagePullPolicy: Always
+        image: quay.io/argoproj/argocd:v3.3.5
+        imagePullPolicy: IfNotPresent
         name: argocd-repo-server
         ports:
         - containerPort: 8081
@@ -480,8 +480,8 @@ spec:
       containers:
       - command:
         - argocd-application-controller
-        image: quay.io/argoproj/argocd:v2.5.4
-        imagePullPolicy: Always
+        image: quay.io/argoproj/argocd:v3.3.5
+        imagePullPolicy: IfNotPresent
         name: argocd-application-controller
         ports:
         - containerPort: 8082
