@@ -4,3 +4,23 @@ kind: Kustomization
 resources:
 - namespace.yaml
 - install.yaml
+patches:
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/imagePullPolicy
+      value: IfNotPresent
+  target:
+    kind: Deployment
+    name: argocd-redis
+    namespace: argocd
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/initContainers/0/imagePullPolicy
+      value: IfNotPresent
+    - op: replace
+      path: /spec/template/spec/containers/0/imagePullPolicy
+      value: IfNotPresent
+  target:
+    kind: Deployment
+    name: argocd-dex-server
+    namespace: argocd
