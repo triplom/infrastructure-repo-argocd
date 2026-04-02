@@ -9,9 +9,9 @@ metadata:
 spec:
   project: applications
   source:
-    repoURL: {{ .Values.targetRepo }}
-    targetRevision: {{ .Values.targetRevision }}
-    path: apps/n8n-waha-automation/base
+    repoURL: {{ .Values.n8nWahaAutomation.repoURL }}
+    targetRevision: {{ .Values.n8nWahaAutomation.targetRevision }}
+    path: k8s
   destination:
     server: https://kubernetes.default.svc
     namespace: automation

@@ -43,3 +43,5 @@ headlamp:
 # N8N + WAHA WhatsApp automation stack
 n8nWahaAutomation:
   enabled: true
+  repoURL: https://github.com/triplom/n8n-waha-automation.git
+  targetRevision: HEAD
