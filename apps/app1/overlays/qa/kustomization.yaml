@@ -15,7 +15,7 @@ patches:
 images:
 - name: ghcr.io/triplom/app1:pipeline-test
   newName: ghcr.io/triplom/app1
-  newTag: "sha-d386068"
+  newTag: "sha-1d7ac90"
 
 configMapGenerator:
 - name: app1-config
