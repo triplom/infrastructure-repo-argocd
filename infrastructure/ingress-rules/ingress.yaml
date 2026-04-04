@@ -134,6 +134,60 @@ spec:
                 port:
                   number: 9093
 ---
+# n8n Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  namespace: automation
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - n8n.local
+      secretName: n8n-tls
+  rules:
+    - host: n8n.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 5678
+---
+# WAHA Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: waha
+  namespace: automation
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - waha.local
+      secretName: waha-tls
+  rules:
+    - host: waha.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: waha
+                port:
+                  number: 3000
+---
 # ArgoCD Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
