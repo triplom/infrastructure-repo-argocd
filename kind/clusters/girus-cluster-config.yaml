@@ -1,0 +1,20 @@
+# infrastructure-repo/kind/clusters/girus-cluster-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: girus
+nodes:
+- role: control-plane
+  image: kindest/node:v1.33.7
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      taints:
+      - key: "node-role.kubernetes.io/control-plane"
+        effect: "NoSchedule"
+- role: worker
+  image: kindest/node:v1.33.7
+- role: worker
+  image: kindest/node:v1.33.7
+networking:
+  apiServerAddress: "127.0.0.1"
