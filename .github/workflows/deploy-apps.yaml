@@ -171,9 +171,18 @@ jobs:
           fi
 
           mkdir -p ~/.kube
-          echo "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          if printf '%s' "$KUBECONFIG_SECRET" | grep -q '^apiVersion:'; then
+            printf '%s' "$KUBECONFIG_SECRET" > ~/.kube/config
+          else
+            printf '%s' "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          fi
           chmod 600 ~/.kube/config
-          kubectl config use-context kind-${{ env.ENV }}-cluster
+          CONTEXT_NAME="kind-${{ env.ENV }}-cluster"
+          if kubectl config get-contexts "$CONTEXT_NAME" > /dev/null 2>&1; then
+            kubectl config use-context "$CONTEXT_NAME"
+          else
+            echo "::warning::Context $CONTEXT_NAME not found, using current kubeconfig context"
+          fi
 
           ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
             -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "")

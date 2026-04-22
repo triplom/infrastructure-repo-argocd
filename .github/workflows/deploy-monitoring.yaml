@@ -145,9 +145,18 @@ jobs:
             exit 0
           fi
           mkdir -p ~/.kube
-          echo "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          if printf '%s' "$KUBECONFIG_SECRET" | grep -q '^apiVersion:'; then
+            printf '%s' "$KUBECONFIG_SECRET" > ~/.kube/config
+          else
+            printf '%s' "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+          fi
           chmod 600 ~/.kube/config
-          kubectl config use-context kind-${{ env.ENV }}-cluster
+          CONTEXT_NAME="kind-${{ env.ENV }}-cluster"
+          if kubectl config get-contexts "$CONTEXT_NAME" > /dev/null 2>&1; then
+            kubectl config use-context "$CONTEXT_NAME"
+          else
+            echo "::warning::Context $CONTEXT_NAME not found, using current kubeconfig context"
+          fi
 
       - name: Force sync monitoring app-of-apps
         run: |

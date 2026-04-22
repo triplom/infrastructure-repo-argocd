@@ -71,9 +71,14 @@ jobs:
             exit 0
           fi
           
-          # Create temporary kubeconfig file based on environment
+          # Create temporary kubeconfig file based on environment.
+          # Accept either raw kubeconfig YAML or a base64-encoded kubeconfig.
           TEMP_KUBECONFIG=$(mktemp)
-          echo "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
+          if printf '%s' "$KUBECONFIG_SECRET" | grep -q '^apiVersion:'; then
+            printf '%s' "$KUBECONFIG_SECRET" > "${TEMP_KUBECONFIG}"
+          else
+            printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
+          fi
           chmod 600 "${TEMP_KUBECONFIG}"
           
           # Set KUBECONFIG environment variable
@@ -85,11 +90,13 @@ jobs:
             exit 1
           fi
           
-          # Set the correct context for the environment
+          # Prefer the environment-specific context, but fall back to the current
+          # context so renamed local kind clusters (for example kind-girus) still work.
           CONTEXT_NAME="kind-${ENV}-cluster"
-          if ! kubectl config use-context "$CONTEXT_NAME"; then
-            echo "::error::Failed to set context to $CONTEXT_NAME"
-            exit 1
+          if kubectl config get-contexts "$CONTEXT_NAME" > /dev/null 2>&1; then
+            kubectl config use-context "$CONTEXT_NAME"
+          else
+            echo "::warning::Context $CONTEXT_NAME not found, using current kubeconfig context"
           fi
           
           echo "Using Kubernetes context: $(kubectl config current-context)"
