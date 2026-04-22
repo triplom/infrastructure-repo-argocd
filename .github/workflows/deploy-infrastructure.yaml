@@ -126,7 +126,15 @@ jobs:
           mkdir -p ~/.kube
           printf '%s' "$KUBECONFIG_SECRET" > ~/.kube/config
           if ! kubectl config get-contexts > /dev/null 2>&1; then
-            printf '%s' "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
+            TEMP_DECODED=$(mktemp)
+            if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_DECODED}" 2>/dev/null && \
+               KUBECONFIG="${TEMP_DECODED}" kubectl config get-contexts > /dev/null 2>&1; then
+              mv "${TEMP_DECODED}" ~/.kube/config
+            else
+              rm -f "${TEMP_DECODED}"
+              echo "::error::KUBECONFIG secret is neither a valid kubeconfig nor a valid base64-encoded kubeconfig"
+              exit 1
+            fi
           fi
           chmod 600 ~/.kube/config
           CONTEXT_NAME="kind-${{ env.ENV }}-cluster"

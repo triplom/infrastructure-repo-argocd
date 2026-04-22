@@ -76,7 +76,15 @@ jobs:
           TEMP_KUBECONFIG=$(mktemp)
           printf '%s' "$KUBECONFIG_SECRET" > "${TEMP_KUBECONFIG}"
           if ! KUBECONFIG="${TEMP_KUBECONFIG}" kubectl config get-contexts > /dev/null 2>&1; then
-            printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
+            TEMP_DECODED=$(mktemp)
+            if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_DECODED}" 2>/dev/null && \
+               KUBECONFIG="${TEMP_DECODED}" kubectl config get-contexts > /dev/null 2>&1; then
+              mv "${TEMP_DECODED}" "${TEMP_KUBECONFIG}"
+            else
+              rm -f "${TEMP_DECODED}"
+              echo "::error::KUBECONFIG_${ENV} is neither a valid kubeconfig nor a valid base64-encoded kubeconfig"
+              exit 1
+            fi
           fi
           chmod 600 "${TEMP_KUBECONFIG}"
           
