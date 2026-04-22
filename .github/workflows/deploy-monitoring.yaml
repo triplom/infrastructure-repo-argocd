@@ -125,7 +125,7 @@ jobs:
   # ── Optional: force ArgoCD sync via CLI ───────────────────────────────────
   argocd-sync:
     name: Force ArgoCD Sync (optional)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, triplom-linux]
     needs: gitops-update
     if: github.event.inputs.force_sync == 'true'
 

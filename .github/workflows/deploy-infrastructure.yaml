@@ -85,7 +85,7 @@ jobs:
   # ── Bootstrap: install ArgoCD + register app-of-apps ─────────────────────
   bootstrap:
     name: Bootstrap ArgoCD (${{ github.event.inputs.environment || 'dev' }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, triplom-linux]
     needs: validate
     if: github.event.inputs.action == 'bootstrap' || github.event_name == 'push'
     environment: ${{ github.event.inputs.environment || 'dev' }}

@@ -143,7 +143,7 @@ jobs:
   # ── Job 3: Report ArgoCD sync status (informational) ──────────────────────
   argocd-status:
     name: ArgoCD Sync Status
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, triplom-linux]
     needs: gitops-update
     if: github.event_name != 'pull_request'
 
