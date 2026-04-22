@@ -40,11 +40,6 @@ headlamp:
   enabled: true
   chartVersion: "0.41.0"
 
-# Metrics Server
-metricsServer:
-  enabled: true
-  chartVersion: "3.13.0"
-
 # N8N + WAHA WhatsApp automation stack
 n8nWahaAutomation:
   enabled: true

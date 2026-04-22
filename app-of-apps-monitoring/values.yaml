@@ -12,3 +12,8 @@ targetRevision: HEAD
 kubePrometheusStack:
   enabled: true
   chartVersion: "83.7.0"
+
+# Metrics Server
+metricsServer:
+  enabled: true
+  chartVersion: "3.13.0"
