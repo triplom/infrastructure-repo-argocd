@@ -47,3 +47,5 @@ spec:
     kind: '*'
   - group: 'rbac.authorization.k8s.io'
     kind: '*'
+  - group: 'batch'
+    kind: '*'
