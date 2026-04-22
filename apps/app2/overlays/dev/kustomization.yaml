@@ -10,4 +10,4 @@ namespace: app2-dev
 images:
 - name: ghcr.io/triplom/app2:pipeline-test
   newName: ghcr.io/triplom/app2
-  newTag: "sha-09684e6"
+  newTag: "sha-ead41b0"
