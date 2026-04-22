@@ -11,4 +11,4 @@ targetRevision: HEAD
 # kube-prometheus-stack manages Prometheus + Grafana + Alertmanager together
 kubePrometheusStack:
   enabled: true
-  chartVersion: "82.15.0"
+  chartVersion: "83.7.0"
