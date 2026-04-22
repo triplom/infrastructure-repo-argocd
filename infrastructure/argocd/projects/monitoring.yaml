@@ -45,3 +45,5 @@ spec:
     kind: '*'
   - group: 'monitoring.coreos.com'
     kind: '*'
+  - group: 'rbac.authorization.k8s.io'
+    kind: '*'
