@@ -21,16 +21,6 @@ spec:
           nodePort: 30900
         config:
           pluginsDir: /headlamp/plugins
-          extraArgs:
-            - "-kubeconfig=/etc/headlamp/remote/kubeconfig"
-        volumes:
-          - name: remote-kubeconfig
-            secret:
-              secretName: headlamp-remote-kubeconfig
-        volumeMounts:
-          - name: remote-kubeconfig
-            mountPath: /etc/headlamp/remote
-            readOnly: true
   destination:
     server: https://kubernetes.default.svc
     namespace: headlamp
