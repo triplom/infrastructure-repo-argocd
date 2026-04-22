@@ -107,7 +107,15 @@ jobs:
           fi
           
           echo "Using Kubernetes context: $(kubectl config current-context)"
-          
+
+          SERVER_URL=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          echo "Kubernetes API server: ${SERVER_URL}"
+          if printf '%s' "$SERVER_URL" | grep -Eq 'https://(127\.0\.0\.1|localhost|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'; then
+            echo "::warning::Kubernetes API endpoint is local/private and not reachable from GitHub-hosted runners."
+            echo "Skipping direct cluster deployment. Use a self-hosted runner or a routable API endpoint for remote bootstrap."
+            exit 0
+          fi
+           
           # Test connectivity
           echo "Testing cluster connectivity..."
           if ! kubectl cluster-info --request-timeout=30s; then

@@ -335,6 +335,32 @@ cat ~/.kube/config | base64 -w0 | \
 
 > After the initial bootstrap, ArgoCD manages the cluster without needing `KUBECONFIG` in CI. The secret is only consumed by the bootstrap workflows.
 
+### Local homelab note
+
+For a local Kind cluster on `triplom-linux`, the Kubernetes API is commonly bound to
+`127.0.0.1` or a private LAN IP. GitHub-hosted runners cannot reach those endpoints.
+
+Supported options:
+
+1. Use a self-hosted GitHub Actions runner on `triplom-linux`
+2. Use a routable/tunneled Kubernetes API endpoint
+3. Let pull-based GitOps continue locally and have GitHub-hosted workflows skip direct cluster access
+
+Self-hosted runner bootstrap helper:
+
+```bash
+RUNNER_TOKEN=<repo-runner-registration-token> \
+  ./scripts/setup-self-hosted-runner.sh
+```
+
+For the `girus` Kind cluster, bind the API server on the LAN address if you want it reachable from other machines on your network:
+
+```yaml
+networking:
+  apiServerAddress: "192.168.1.85"
+  apiServerPort: 6443
+```
+
 ---
 
 ## Container Images

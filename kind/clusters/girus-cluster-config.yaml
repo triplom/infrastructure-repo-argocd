@@ -17,4 +17,5 @@ nodes:
 - role: worker
   image: kindest/node:v1.33.7
 networking:
-  apiServerAddress: "127.0.0.1"
+  apiServerAddress: "192.168.1.85"
+  apiServerPort: 6443

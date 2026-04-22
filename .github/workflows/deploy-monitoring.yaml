@@ -157,6 +157,13 @@ jobs:
           else
             echo "::warning::Context $CONTEXT_NAME not found, using current kubeconfig context"
           fi
+          SERVER_URL=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          echo "Kubernetes API server: ${SERVER_URL}"
+          if printf '%s' "$SERVER_URL" | grep -Eq 'https://(127\.0\.0\.1|localhost|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'; then
+            echo "Kubernetes API endpoint is local/private and not reachable from GitHub-hosted runners"
+            echo "Skipping direct monitoring sync. ArgoCD will auto-sync locally."
+            exit 0
+          fi
 
       - name: Force sync monitoring app-of-apps
         run: |

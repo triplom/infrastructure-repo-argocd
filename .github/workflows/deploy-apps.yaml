@@ -183,6 +183,13 @@ jobs:
           else
             echo "::warning::Context $CONTEXT_NAME not found, using current kubeconfig context"
           fi
+          SERVER_URL=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          echo "Kubernetes API server: ${SERVER_URL}"
+          if printf '%s' "$SERVER_URL" | grep -Eq 'https://(127\.0\.0\.1|localhost|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'; then
+            echo "Kubernetes API endpoint is local/private and not reachable from GitHub-hosted runners"
+            echo "Skipping direct ArgoCD check. ArgoCD will continue pull-based reconciliation locally."
+            exit 0
+          fi
 
           ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
             -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "")
