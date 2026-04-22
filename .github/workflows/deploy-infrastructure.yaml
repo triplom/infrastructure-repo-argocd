@@ -65,8 +65,9 @@ jobs:
 
       - name: Validate ingress-nginx manifests
         run: |
-          if [ -d "infrastructure/ingress-nginx/base" ]; then
-            kustomize build infrastructure/ingress-nginx/base > /dev/null && echo "ingress-nginx: OK"
+          echo "ingress-nginx is managed by the app-of-apps-infra Helm chart"
+          if [ -f "app-of-apps-infra/Chart.yaml" ]; then
+            helm lint app-of-apps-infra/ && echo "ingress-nginx app-of-apps chart path: OK"
           fi
 
       - name: Validate root-app Helm chart
@@ -123,9 +124,8 @@ jobs:
             exit 0
           fi
           mkdir -p ~/.kube
-          if printf '%s' "$KUBECONFIG_SECRET" | grep -q '^apiVersion:'; then
-            printf '%s' "$KUBECONFIG_SECRET" > ~/.kube/config
-          else
+          printf '%s' "$KUBECONFIG_SECRET" > ~/.kube/config
+          if ! kubectl config get-contexts > /dev/null 2>&1; then
             printf '%s' "$KUBECONFIG_SECRET" | base64 -d > ~/.kube/config
           fi
           chmod 600 ~/.kube/config
@@ -147,14 +147,9 @@ jobs:
 
       - name: Install ingress-nginx (prerequisite)
         run: |
-          echo "=== GitOps bootstrap: Installing ingress-nginx ==="
+          echo "=== GitOps bootstrap: ingress-nginx is managed by ArgoCD app-of-apps-infra ==="
           kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f -
-          OVERLAY="infrastructure/ingress-nginx/overlays/${{ env.ENV }}"
-          if [ -d "$OVERLAY" ]; then
-            kustomize build "$OVERLAY" | kubectl apply --server-side -f -
-          else
-            kustomize build infrastructure/ingress-nginx/base | kubectl apply --server-side -f -
-          fi
+          echo "Skipping imperative ingress-nginx install; ArgoCD will reconcile it from app-of-apps-infra"
 
       - name: Install ArgoCD
         run: |

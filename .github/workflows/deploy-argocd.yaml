@@ -74,9 +74,8 @@ jobs:
           # Create temporary kubeconfig file based on environment.
           # Accept either raw kubeconfig YAML or a base64-encoded kubeconfig.
           TEMP_KUBECONFIG=$(mktemp)
-          if printf '%s' "$KUBECONFIG_SECRET" | grep -q '^apiVersion:'; then
-            printf '%s' "$KUBECONFIG_SECRET" > "${TEMP_KUBECONFIG}"
-          else
+          printf '%s' "$KUBECONFIG_SECRET" > "${TEMP_KUBECONFIG}"
+          if ! KUBECONFIG="${TEMP_KUBECONFIG}" kubectl config get-contexts > /dev/null 2>&1; then
             printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "${TEMP_KUBECONFIG}"
           fi
           chmod 600 "${TEMP_KUBECONFIG}"
