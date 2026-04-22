@@ -15,4 +15,4 @@ patches:
 images:
 - name: ghcr.io/triplom/app1:pipeline-test
   newName: ghcr.io/triplom/app1
-  newTag: "sha-be2444a"
+  newTag: "sha-0441f2f"
