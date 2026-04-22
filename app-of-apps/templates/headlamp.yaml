@@ -21,6 +21,7 @@ spec:
           nodePort: 30900
         config:
           pluginsDir: /headlamp/plugins
+          inClusterContextName: girus
   destination:
     server: https://kubernetes.default.svc
     namespace: headlamp
