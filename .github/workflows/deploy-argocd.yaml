@@ -203,12 +203,8 @@ jobs:
             --from-literal=url="git@github.com:triplom/infrastructure-repo-argocd.git" \
             --from-literal=sshPrivateKey="${SSH_PRIVATE_KEY}" \
             --dry-run=client -o json \
-          | python3 -c "
-import json, sys
-obj = json.load(sys.stdin)
-obj.setdefault('metadata', {}).setdefault('labels', {})['argocd.argoproj.io/secret-type'] = 'repository'
-print(json.dumps(obj))
-" | kubectl apply -f -
+          | python3 -c "import json,sys; o=json.load(sys.stdin); o.setdefault('metadata',{}).setdefault('labels',{})['argocd.argoproj.io/secret-type']='repository'; print(json.dumps(o))" \
+          | kubectl apply -f -
 
           echo "SSH repository secret configured"
 
