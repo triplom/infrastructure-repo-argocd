@@ -188,27 +188,29 @@ jobs:
 
       - name: Configure SSH Repository Secret
         if: ${{ github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           echo "Configuring SSH repository secret..."
-          
-          # Create repository secret for SSH access
-          kubectl apply --validate=false -f - <<EOF
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: infrastructure-repo-ssh
-            namespace: argocd
-            labels:
-              argocd.argoproj.io/secret-type: repository
-          type: Opaque
-          stringData:
-            type: git
-            url: git@github.com:triplom/infrastructure-repo-argocd.git
-            sshPrivateKey: |
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          EOF
-          
-          echo "✅ SSH repository secret configured"
+
+          # PEM keys start with '-----BEGIN ...' which contains '---', confusing
+          # YAML parsers when the value is embedded unindented in a heredoc.
+          # Use kubectl create --from-literal (binary blob, no YAML parsing) and
+          # add the ArgoCD label via a Python JSON patch before applying.
+          kubectl create secret generic infrastructure-repo-ssh \
+            --namespace argocd \
+            --from-literal=type=git \
+            --from-literal=url="git@github.com:triplom/infrastructure-repo-argocd.git" \
+            --from-literal=sshPrivateKey="${SSH_PRIVATE_KEY}" \
+            --dry-run=client -o json \
+          | python3 -c "
+import json, sys
+obj = json.load(sys.stdin)
+obj.setdefault('metadata', {}).setdefault('labels', {})['argocd.argoproj.io/secret-type'] = 'repository'
+print(json.dumps(obj))
+" | kubectl apply -f -
+
+          echo "SSH repository secret configured"
 
       - name: Bootstrap ArgoCD Applications
         if: ${{ github.event.inputs.action == 'bootstrap' || github.event.inputs.action == '' }}
