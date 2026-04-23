@@ -145,15 +145,34 @@ jobs:
           
           # Create argocd namespace
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Install ArgoCD from the checked-in kustomize base (single source of truth).
-          # Do NOT use upstream stable/manifests/install.yaml here — mixing that with the
-          # Helm-managed install causes duplicate containers in every ArgoCD pod.
-          if [ -d "infrastructure/argocd/base" ]; then
-            kustomize build infrastructure/argocd/base | kubectl apply --server-side -f -
+
+          # SAFETY CHECK: If ArgoCD is already managed by Helm, use Helm to upgrade it.
+          # Applying the kustomize base (which contains upstream install.yaml) on top of a
+          # Helm-managed installation adds duplicate containers to every ArgoCD pod
+          # (Helm uses container name "server"; install.yaml uses "argocd-server"), causing
+          # CrashLoopBackOff due to port conflicts. Always use the same installation method
+          # that is already in use.
+          if helm status argocd -n argocd > /dev/null 2>&1; then
+            echo "ArgoCD is Helm-managed. Using helm upgrade to update."
+            # Pin to argo-cd-9.5.2 (ArgoCD v3.3.7) — v3.3.8 has a regression where the
+            # application-controller's in-memory sync operation executor silently fails,
+            # causing all automated syncs to never complete (OperationStarted events fire
+            # every 2 min but OperationCompleted never fires). Tracked upstream.
+            helm repo add argo https://argoproj.github.io/argo-helm --force-update
+            helm upgrade argocd argo/argo-cd \
+              --version 9.5.2 \
+              --namespace argocd \
+              --reuse-values \
+              --atomic \
+              --timeout 10m
           else
-            echo "::error::infrastructure/argocd/base not found. Cannot install ArgoCD."
-            exit 1
+            echo "ArgoCD is NOT Helm-managed. Applying kustomize base."
+            if [ -d "infrastructure/argocd/base" ]; then
+              kustomize build infrastructure/argocd/base | kubectl apply --server-side -f -
+            else
+              echo "::error::infrastructure/argocd/base not found. Cannot install ArgoCD."
+              exit 1
+            fi
           fi
           
           # Wait for ArgoCD to be ready
