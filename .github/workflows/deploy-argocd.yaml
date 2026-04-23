@@ -213,19 +213,29 @@ jobs:
         run: |
           echo "Bootstrapping ArgoCD applications..."
           
-          # Apply root application that will create all app-of-apps
-          kubectl apply --validate=false -f - <<EOF
+          # Bootstrap the root-app Application only if it does not already exist.
+          # On an existing cluster root-app is already managed by the app-of-apps
+          # hierarchy — re-applying it here would create a second Application
+          # called "root" that conflicts with (and can prune) root-app.
+          if kubectl get application root-app -n argocd > /dev/null 2>&1; then
+            echo "root-app already exists — skipping bootstrap apply."
+          else
+            # Apply root application that will create all app-of-apps.
+            # Use HTTPS URL to match all other Applications in this cluster
+            # (the SSH URL git@github.com:... requires a deploy key in the
+            # infrastructure-repo-ssh secret which may not be configured).
+            kubectl apply --validate=false -f - <<EOF
           apiVersion: argoproj.io/v1alpha1
           kind: Application
           metadata:
-            name: root
+            name: root-app
             namespace: argocd
             finalizers:
               - resources-finalizer.argocd.argoproj.io
           spec:
             project: default
             source:
-              repoURL: git@github.com:triplom/infrastructure-repo-argocd.git
+              repoURL: https://github.com/triplom/infrastructure-repo-argocd.git
               targetRevision: HEAD
               path: root-app
             destination:
@@ -238,14 +248,15 @@ jobs:
               syncOptions:
                 - CreateNamespace=true
           EOF
-          
-          echo "Waiting for root application to sync..."
+          fi
+
+          echo "Waiting for root-app to sync..."
           sleep 30
-          
-          # Check if root app is created and synced
-          kubectl get applications -n argocd root -o yaml || echo "Root app not yet created"
-          
-          echo "✅ ArgoCD bootstrap completed"
+
+          # Check status
+          kubectl get applications -n argocd root-app -o yaml || echo "root-app not yet created"
+
+          echo "ArgoCD bootstrap completed"
 
       - name: Sync All Applications
         if: ${{ github.event.inputs.action == 'sync-all' }}
