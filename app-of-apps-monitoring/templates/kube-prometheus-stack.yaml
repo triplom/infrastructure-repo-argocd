@@ -19,10 +19,26 @@ spec:
       values: |
         grafana:
           adminPassword: admin
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
         prometheus:
           prometheusSpec:
             podMonitorSelectorNilUsesHelmValues: false
             serviceMonitorSelectorNilUsesHelmValues: false
+            scrapeInterval: 60s
+            evaluationInterval: 60s
+            retention: 5d
+            retentionSize: 2GB
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
